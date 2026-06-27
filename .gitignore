@@ -1,0 +1,15 @@
+# Local environment variables
+.env
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Testing cache
+.pytest_cache/
+
+# Streamlit local secrets
+.streamlit/config.toml
+.streamlit/secrets.toml
