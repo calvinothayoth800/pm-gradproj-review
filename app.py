@@ -327,11 +327,7 @@ def generate_excel_bytes(df):
     ws2["A2"] = "Spotify Growth Analysis - Blocker vs Cohort Pivot Summary"
     ws2["A2"].font = title_font
     
-    neg_df = df[df["Theme"] != "Positive"]
-    if not neg_df.empty:
-        pivot = pd.crosstab(neg_df["Theme"], neg_df["User Type"], margins=True, margins_name="Total")
-    else:
-        pivot = pd.crosstab(df["Theme"], df["User Type"], margins=True, margins_name="Total")
+    pivot = pd.crosstab(df["Theme"], df["User Type"], margins=True, margins_name="Total")
     pivot_cols = list(pivot.columns)
     
     ws2.cell(row=4, column=1, value="Theme / Cohort").font = header_font
