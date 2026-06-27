@@ -30,8 +30,8 @@ MAX_BATCH_SIZE = int(os.getenv("MAX_BATCH_SIZE", "900"))  # Cap processing at 90
 KEYWORDS = ["discovery", "recommendation", "smart shuffle", "shuffle", "algorithm", "same songs", "echo chamber", "loop"]
 
 # Allowed enums for validation
-THEME_ENUM = ["Echo Chamber", "Smart Shuffle Failure", "Niche Genre Blending", "UI/UX Clutter", "Positive"]
-SENTIMENT_ENUM = ["Negative", "Highly Frustrated", "Disappointed", "Positive"]
+THEME_ENUM = ["Echo Chamber", "Smart Shuffle Failure", "Niche Genre Blending", "UI/UX Clutter"]
+SENTIMENT_ENUM = ["Negative", "Highly Frustrated", "Disappointed"]
 USER_TYPE_ENUM = ["Power User", "Casual Listener", "Audiophile", "Playlist Curator"]
 
 def compute_md5(source, platform_id):
@@ -205,20 +205,6 @@ def rule_based_fallback(text):
     """Fallback local classification when Groq API is unavailable or in test mode."""
     text_lower = text.lower()
     
-    # Heuristic check for positive sentiment
-    pos_words = ["love", "great", "satisfied", "excellent", "good", "perfect", "awesome", "best"]
-    neg_words = ["crash", "worst", "terrible", "hate", "issue", "bug", "fail", "bad", "frustrat", "annoy", "loop", "clutter", "same songs"]
-    
-    is_positive = any(pw in text_lower for pw in pos_words) and not any(nw in text_lower for nw in neg_words)
-    
-    if is_positive:
-        return {
-            "theme": "Positive",
-            "sentiment": "Positive",
-            "user_type": "Casual Listener" if "casual" in text_lower else "Power User",
-            "root_cause": "User is satisfied with the app"
-        }
-        
     # Defaults
     theme = "Echo Chamber"
     sentiment = "Negative"
@@ -284,19 +270,11 @@ def analyze_review_with_groq(text):
         prompt = f"""You are a Growth PM and Data Architect. Analyze this music app user review:
 "{text}"
 
-First, determine if the review is primarily Positive/Neutral (the user is satisfied, praises the app, or lists no issues/frustrations) or Negative (complaining about features, finding bugs, listing design flaws, or experiencing frustrations).
-
-If the review is Positive/Neutral, classify it exactly as follows:
-- theme: "Positive"
-- sentiment: "Positive"
-- user_type: "Power User" | "Casual Listener" | "Audiophile" | "Playlist Curator" (choose the most matching cohort based on their usage profile described in the review)
-- root_cause: A concise 5-to-7 word description summarizing why they are satisfied.
-
-If the review is Negative, classify it exactly as follows:
+Classify the review into exactly one value for each of the following fields:
 - theme: "Echo Chamber" | "Smart Shuffle Failure" | "Niche Genre Blending" | "UI/UX Clutter"
 - sentiment: "Negative" | "Highly Frustrated" | "Disappointed"
 - user_type: "Power User" | "Casual Listener" | "Audiophile" | "Playlist Curator"
-- root_cause: A concise 5-to-7 word description of the exact behavioral blocker or defect they are experiencing.
+- root_cause: A concise 5-to-7 word description of the exact behavioral blocker.
 
 Output ONLY a raw, valid JSON object with keys: "theme", "sentiment", "user_type", "root_cause".
 Do NOT include markdown formatting, backticks, or conversational text.
@@ -320,7 +298,7 @@ Do NOT include markdown formatting, backticks, or conversational text.
                 result["user_type"] = "Power User"
             # Ensure root_cause length or existence
             if not result.get("root_cause"):
-                result["root_cause"] = "User is satisfied with the app" if result["theme"] == "Positive" else "Unspecified recommendation blocker"
+                result["root_cause"] = "Unspecified recommendation blocker"
             return result
             
     except Exception as e:

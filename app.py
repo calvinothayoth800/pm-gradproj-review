@@ -397,32 +397,17 @@ with col_btn2:
         else:
             with st.spinner("Processing..."):
                 run_ai_classification_in_ui()
-                st.rerun()
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# KPIs Calculations
+               # KPIs Calculations
 if not df.empty:
     total_reviews = len(df)
-    positive_df = df[df["Theme"] == "Positive"]
-    negative_df = df[df["Theme"] != "Positive"]
+    highly_frustrated = len(df[df["Sentiment"] == "Highly Frustrated"])
+    frustration_rate = f"{int(highly_frustrated / total_reviews * 100)}%" if total_reviews > 0 else "0%"
     
-    total_pos = len(positive_df)
-    total_neg = len(negative_df)
-    
-    defect_rate = f"{int(total_neg / total_reviews * 100)}%" if total_reviews > 0 else "0%"
-    
-    if not negative_df.empty:
-        top_theme = negative_df["Theme"].value_counts().index[0]
-        top_cohort = negative_df["User Type"].value_counts().index[0]
-    else:
-        top_theme = "No Defects"
-        top_cohort = "N/A"
+    top_theme = df["Theme"].value_counts().index[0]
+    top_cohort = df["User Type"].value_counts().index[0]
 else:
     total_reviews = 0
-    total_pos = 0
-    total_neg = 0
-    defect_rate = "N/A"
+    frustration_rate = "N/A"
     top_theme = "N/A"
     top_cohort = "N/A"
 
@@ -430,13 +415,13 @@ else:
 col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
 
 with col_kpi1:
-    st.metric("Total Reviews Ingested", total_reviews, help="Total Spotify reviews matching algorithmic keywords")
+    st.metric("Total Issues Ingested", total_reviews, help="Total number of analyzed feedback complaints")
 with col_kpi2:
-    st.metric("Total Issues Identified", f"{total_neg} ({defect_rate})", help="Count and percentage of reviews identified as containing defects or frustrations")
+    st.metric("Frustration Rate", frustration_rate, help="Percentage of reviews flagged with Highly Frustrated severity")
 with col_kpi3:
     st.metric("Primary Blocker Theme", top_theme)
 with col_kpi4:
-    st.metric("Top Vulnerable Cohort", top_cohort)
+    st.metric("Top Affected Cohort", top_cohort)
  
 st.markdown("<br>", unsafe_allow_html=True)
  
@@ -461,7 +446,6 @@ with st.expander("Filter Matrix", expanded=False):
         sentiment_filter = st.multiselect("Sentiment Severity", options=sentiment_opts, default=sentiment_opts)
         
     search_query = st.text_input("Search Text Content", "")
-    show_issues_only = st.checkbox("Show Issues/Defects Only", value=True, help="Filter out positive feedback to focus only on defect loops.")
  
 # Apply Filters
 if not df.empty:
@@ -471,19 +455,26 @@ if not df.empty:
         (df["User Type"].isin(user_filter)) &
         (df["Sentiment"].isin(sentiment_filter))
     ]
-    if show_issues_only:
-        filtered_df = filtered_df[filtered_df["Theme"] != "Positive"]
     if search_query:
         filtered_df = filtered_df[filtered_df["Text"].str.contains(search_query, case=False, na=False)]
 else:
     filtered_df = pd.DataFrame()
  
 # Visualizations
-st.subheader("📊 Sentiment Analysis & Defect Diagnostics")
+st.subheader("📊 Defect Diagnostics & User Cohorts")
 col_chart1, col_chart2 = st.columns(2)
  
 with col_chart1:
-    st.markdown("**Overall Sentiment Split**")
+    st.markdown("**Blocker Themes Distribution**")
+    if not filtered_df.empty:
+        theme_counts = filtered_df["Theme"].value_counts().reset_index()
+        theme_counts.columns = ["Theme", "Count"]
+        st.bar_chart(theme_counts.set_index("Theme"))
+    else:
+        st.info("No data matches active filters.")
+ 
+with col_chart2:
+    st.markdown("**Sentiment Severity Distribution**")
     if not filtered_df.empty:
         sentiment_counts = filtered_df["Sentiment"].value_counts().reset_index()
         sentiment_counts.columns = ["Sentiment", "Count"]
@@ -491,34 +482,24 @@ with col_chart1:
     else:
         st.info("No data matches active filters.")
  
-with col_chart2:
-    st.markdown("**Blocker Themes Distribution**")
-    filtered_neg_df = filtered_df[filtered_df["Theme"] != "Positive"] if not filtered_df.empty else pd.DataFrame()
-    if not filtered_neg_df.empty:
-        theme_counts = filtered_neg_df["Theme"].value_counts().reset_index()
-        theme_counts.columns = ["Theme", "Count"]
-        st.bar_chart(theme_counts.set_index("Theme"))
-    else:
-        st.info("No negative defect data matches active filters.")
- 
 st.markdown("<br>", unsafe_allow_html=True)
 col_chart3, col_chart4 = st.columns(2)
 with col_chart3:
-    st.markdown("**User Cohorts Affected by Defects**")
-    if not filtered_neg_df.empty:
-        cohort_counts = filtered_neg_df["User Type"].value_counts().reset_index()
+    st.markdown("**User Cohorts Affected**")
+    if not filtered_df.empty:
+        cohort_counts = filtered_df["User Type"].value_counts().reset_index()
         cohort_counts.columns = ["Cohort", "Count"]
         st.bar_chart(cohort_counts.set_index("Cohort"))
     else:
-        st.info("No negative defect data matches active filters.")
+        st.info("No data matches active filters.")
  
 # Pivot Matrix & Report Download
 col_pivot, col_down = st.columns([3, 1])
  
 with col_pivot:
-    st.subheader("🎲 Blocker Theme vs Cohort Pivot Matrix")
-    if not filtered_neg_df.empty:
-        pivot_df = pd.crosstab(filtered_neg_df["Theme"], filtered_neg_df["User Type"], margins=True, margins_name="Total")
+    st.subheader("🎲 Theme vs Segment Cross-Tabulation")
+    if not filtered_df.empty:
+        pivot_df = pd.crosstab(filtered_df["Theme"], filtered_df["User Type"], margins=True, margins_name="Total")
         st.dataframe(pivot_df, use_container_width=True)
     else:
         st.info("No defect records to formulate cross-tabs.")
