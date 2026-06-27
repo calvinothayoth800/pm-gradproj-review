@@ -430,9 +430,9 @@ else:
 col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
 
 with col_kpi1:
-    st.metric("Total Analyzed", total_reviews, help="Total number of processed Spotify reviews")
+    st.metric("Total Reviews Ingested", total_reviews, help="Total Spotify reviews matching algorithmic keywords")
 with col_kpi2:
-    st.metric("Defect Rate", defect_rate, delta=f"{total_neg} issues / {total_pos} positive")
+    st.metric("Total Issues Identified", f"{total_neg} ({defect_rate})", help="Count and percentage of reviews identified as containing defects or frustrations")
 with col_kpi3:
     st.metric("Primary Blocker Theme", top_theme)
 with col_kpi4:
