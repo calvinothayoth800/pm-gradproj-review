@@ -237,7 +237,7 @@ def fetch_analyzed_data():
             return pd.DataFrame()
             
         df = pd.DataFrame(rows)
-        df["Timestamp"] = pd.to_datetime(df["Timestamp"])
+        df["Timestamp"] = pd.to_datetime(df["Timestamp"], format="ISO8601")
         return df
     except Exception as e:
         st.error(f"Failed to fetch database: {str(e)}")
