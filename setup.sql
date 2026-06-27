@@ -13,8 +13,8 @@ CREATE TABLE IF NOT EXISTS public.raw_feedback (
 -- Table 2: Analytical Dimensions Layer
 CREATE TABLE IF NOT EXISTS public.ai_analytics (
     review_id TEXT PRIMARY KEY REFERENCES public.raw_feedback(review_id) ON DELETE CASCADE,
-    theme TEXT NOT NULL CHECK (theme IN ('Echo Chamber', 'Smart Shuffle Failure', 'Niche Genre Blending', 'UI/UX Clutter')),
-    sentiment TEXT NOT NULL CHECK (sentiment IN ('Negative', 'Highly Frustrated', 'Disappointed')),
+    theme TEXT NOT NULL CHECK (theme IN ('Echo Chamber', 'Smart Shuffle Failure', 'Niche Genre Blending', 'UI/UX Clutter', 'Positive')),
+    sentiment TEXT NOT NULL CHECK (sentiment IN ('Negative', 'Highly Frustrated', 'Disappointed', 'Positive')),
     user_type TEXT NOT NULL CHECK (user_type IN ('Power User', 'Casual Listener', 'Audiophile', 'Playlist Curator')),
     root_cause VARCHAR(100) NOT NULL, -- Concise 5-7 word descriptive summary
     analyzed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

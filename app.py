@@ -24,7 +24,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Premium Dark Magepunk Aesthetic CSS (Charcoal, Brushed Brass, Deep Violet)
+# Premium Minimalist Slate-Zinc CSS
 st.markdown("""
     <style>
     /* Hide default sidebar elements */
@@ -37,167 +37,114 @@ st.markdown("""
     
     /* Main App Container Styling */
     .stApp {
-        background-color: #0b090f; /* Deep obsidian with violet undertone */
-        color: #f1ecff; /* Crisp clean lavender white */
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background-color: #09090b !important;
+        color: #f4f4f5 !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
     
     /* Elegant Title Banner */
     .app-title {
-        text-align: center;
+        text-align: left;
         font-size: 2.2rem;
-        font-weight: 800;
+        font-weight: 700;
         letter-spacing: -0.5px;
-        color: #d4af37 !important; /* Brushed gold/brass */
+        color: #f4f4f5 !important;
         margin-top: 10px;
         margin-bottom: 2px;
     }
     .app-subtitle {
-        text-align: center;
+        text-align: left;
         font-size: 0.95rem;
-        color: #8c829e; /* Muted slate purple */
-        margin-bottom: 25px;
+        color: #a1a1aa !important;
+        margin-bottom: 30px;
     }
     
-    /* Custom Card Design (Brushed metallic texture shadow) */
+    /* Custom Card Design (Minimalistic border) */
     [data-testid="stMetric"] {
-        background-color: #120f18 !important; /* Raised cards dark background */
-        border: 1px solid #231c2d !important;
-        border-radius: 6px !important;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
-        padding: 22px !important;
-        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-    [data-testid="stMetric"]:hover {
-        transform: translateY(-2px);
-        border-color: #d4af37 !important; /* Gold hover border */
-        box-shadow: 0 8px 25px rgba(212, 175, 55, 0.15) !important;
+        background-color: #121214 !important;
+        border: 1px solid #27272a !important;
+        border-radius: 8px !important;
+        padding: 20px !important;
+        box-shadow: none !important;
     }
     div[data-testid="stMetricValue"] {
-        color: #a476f5 !important; /* Clean purple value */
+        color: #f4f4f5 !important;
         font-weight: 700;
-        font-size: 2.2rem !important;
-        letter-spacing: -1px;
+        font-size: 1.8rem !important;
+        letter-spacing: -0.5px;
     }
     div[data-testid="stMetricLabel"] {
-        color: #d4af37 !important; /* Gold label */
-        font-weight: 700;
+        color: #a1a1aa !important;
+        font-weight: 500;
         font-size: 0.8rem !important;
         text-transform: uppercase;
-        letter-spacing: 1.5px;
+        letter-spacing: 0.5px;
     }
     
     /* Custom Control Box */
     .control-box {
-        background-color: #120f18;
-        border: 1px solid #231c2d;
-        border-radius: 6px;
-        padding: 24px;
-        margin-bottom: 24px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+        background-color: #121214;
+        border: 1px solid #27272a;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
     }
     .control-title {
-        font-size: 1.15rem;
-        font-weight: 700;
-        color: #d4af37;
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: #f4f4f5;
         margin-bottom: 4px;
     }
     .control-desc {
         font-size: 0.85rem;
-        color: #8c829e;
+        color: #a1a1aa;
     }
     
-    /* Action Buttons (Gold Gradient) */
+    /* Action Buttons (Clean Slate) */
     .stButton>button {
-        background: linear-gradient(135deg, #d4af37 0%, #b8860b 100%) !important;
-        color: #0b090f !important;
-        border: 1px solid #d4af37 !important;
-        border-radius: 4px !important;
-        font-weight: 700 !important;
-        font-size: 0.9rem !important;
-        letter-spacing: 1px;
-        padding: 12px 0px !important;
-        box-shadow: 0 4px 15px rgba(212, 175, 55, 0.2);
-        transition: all 0.2s ease-in-out !important;
+        background-color: #27272a !important;
+        color: #f4f4f5 !important;
+        border: 1px solid #3f3f46 !important;
+        border-radius: 6px !important;
+        font-weight: 500 !important;
+        font-size: 0.85rem !important;
+        padding: 8px 16px !important;
+        transition: background-color 0.2s, border-color 0.2s !important;
     }
     .stButton>button:hover {
-        background: linear-gradient(135deg, #f1cc5b 0%, #d4af37 100%) !important;
-        box-shadow: 0 6px 20px rgba(212, 175, 55, 0.4) !important;
-        transform: translateY(-1px);
-    }
-    
-    /* Smooth transition for expanders */
-    .stExpander {
-        background-color: #120f18 !important;
-        border: 1px solid #231c2d !important;
-        border-radius: 6px !important;
+        background-color: #3f3f46 !important;
+        border-color: #52525b !important;
+        color: #ffffff !important;
     }
     
     /* Clean tables styling */
     div[data-testid="stDataFrame"] {
-        border: 1px solid #231c2d;
-        border-radius: 6px;
-        background-color: #120f18;
+        border: 1px solid #27272a;
+        border-radius: 8px;
+        background-color: #121214;
     }
     div[data-testid="stMultiSelect"] > div {
-        background-color: #120f18 !important;
-        border: 1px solid #231c2d !important;
+        background-color: #121214 !important;
+        border: 1px solid #27272a !important;
     }
     
     /* Custom scrollbars */
     ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+        width: 6px;
+        height: 6px;
     }
     ::-webkit-scrollbar-track {
-        background: #0b090f;
+        background: #09090b;
     }
     ::-webkit-scrollbar-thumb {
-        background: #231c2d;
-        border-radius: 4px;
+        background: #27272a;
+        border-radius: 3px;
     }
     ::-webkit-scrollbar-thumb:hover {
-        background: #d4af37;
+        background: #3f3f46;
     }
     </style>
 """, unsafe_allow_html=True)
-
-# In-browser Web Audio API mechanical sound script (Professional / Minimalistic)
-st.components.v1.html("""
-<script>
-    let audioCtx = null;
-    function init() {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    function playSfx(freq, vol, duration) {
-        init();
-        if (!audioCtx) return;
-        let osc = audioCtx.createOscillator();
-        let gain = audioCtx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + duration);
-        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + duration);
-    }
-    // Listen to parent events
-    window.parent.document.addEventListener('click', (e) => {
-        if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
-            playSfx(220, 0.05, 0.12);
-        }
-    });
-    window.parent.document.addEventListener('mouseover', (e) => {
-        let metric = e.target.closest('[data-testid="stMetric"]');
-        if (metric) {
-            playSfx(100, 0.02, 0.06);
-        }
-    });
-</script>
-""", height=0, width=0)
 
 from pipeline import analyze_review_with_groq
 
@@ -380,7 +327,11 @@ def generate_excel_bytes(df):
     ws2["A2"] = "Spotify Growth Analysis - Blocker vs Cohort Pivot Summary"
     ws2["A2"].font = title_font
     
-    pivot = pd.crosstab(df["Theme"], df["User Type"], margins=True, margins_name="Total")
+    neg_df = df[df["Theme"] != "Positive"]
+    if not neg_df.empty:
+        pivot = pd.crosstab(neg_df["Theme"], neg_df["User Type"], margins=True, margins_name="Total")
+    else:
+        pivot = pd.crosstab(df["Theme"], df["User Type"], margins=True, margins_name="Total")
     pivot_cols = list(pivot.columns)
     
     ws2.cell(row=4, column=1, value="Theme / Cohort").font = header_font
@@ -450,32 +401,45 @@ with col_btn2:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
+# KPIs Calculations
+if not df.empty:
+    total_reviews = len(df)
+    positive_df = df[df["Theme"] == "Positive"]
+    negative_df = df[df["Theme"] != "Positive"]
+    
+    total_pos = len(positive_df)
+    total_neg = len(negative_df)
+    
+    defect_rate = f"{int(total_neg / total_reviews * 100)}%" if total_reviews > 0 else "0%"
+    
+    if not negative_df.empty:
+        top_theme = negative_df["Theme"].value_counts().index[0]
+        top_cohort = negative_df["User Type"].value_counts().index[0]
+    else:
+        top_theme = "No Defects"
+        top_cohort = "N/A"
+else:
+    total_reviews = 0
+    total_pos = 0
+    total_neg = 0
+    defect_rate = "N/A"
+    top_theme = "N/A"
+    top_cohort = "N/A"
+
 # KPIs Grid
 col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
 
 with col_kpi1:
-    st.metric("Total Classified", len(df))
+    st.metric("Total Analyzed", total_reviews, help="Total number of processed Spotify reviews")
 with col_kpi2:
-    if not df.empty:
-        top_theme = df["Theme"].value_counts().index[0]
-        st.metric("Primary Blocker Theme", top_theme)
-    else:
-        st.metric("Primary Blocker Theme", "N/A")
+    st.metric("Defect Rate", defect_rate, delta=f"{total_neg} issues / {total_pos} positive")
 with col_kpi3:
-    if not df.empty:
-        highly_frustrated = len(df[df["Sentiment"] == "Highly Frustrated"])
-        st.metric("Frustration Rate", f"{int(highly_frustrated/len(df)*100) if len(df) > 0 else 0}%")
-    else:
-        st.metric("Frustration Rate", "N/A")
+    st.metric("Primary Blocker Theme", top_theme)
 with col_kpi4:
-    if not df.empty:
-        top_cohort = df["User Type"].value_counts().index[0]
-        st.metric("Top Affected Cohort", top_cohort)
-    else:
-        st.metric("Top Affected Cohort", "N/A")
-
+    st.metric("Top Vulnerable Cohort", top_cohort)
+ 
 st.markdown("<br>", unsafe_allow_html=True)
-
+ 
 # Collapsible Filtering Matrix (Expander - Clean Layout)
 with st.expander("Filter Matrix", expanded=False):
     if not df.empty:
@@ -497,7 +461,8 @@ with st.expander("Filter Matrix", expanded=False):
         sentiment_filter = st.multiselect("Sentiment Severity", options=sentiment_opts, default=sentiment_opts)
         
     search_query = st.text_input("Search Text Content", "")
-
+    show_issues_only = st.checkbox("Show Issues/Defects Only", value=True, help="Filter out positive feedback to focus only on defect loops.")
+ 
 # Apply Filters
 if not df.empty:
     filtered_df = df[
@@ -506,46 +471,58 @@ if not df.empty:
         (df["User Type"].isin(user_filter)) &
         (df["Sentiment"].isin(sentiment_filter))
     ]
+    if show_issues_only:
+        filtered_df = filtered_df[filtered_df["Theme"] != "Positive"]
     if search_query:
         filtered_df = filtered_df[filtered_df["Text"].str.contains(search_query, case=False, na=False)]
 else:
     filtered_df = pd.DataFrame()
-
+ 
 # Visualizations
-st.subheader("📊 Recommendation Defects & User Cohorts")
+st.subheader("📊 Sentiment Analysis & Defect Diagnostics")
 col_chart1, col_chart2 = st.columns(2)
-
+ 
 with col_chart1:
-    st.markdown("**Blocker Themes Distribution**")
+    st.markdown("**Overall Sentiment Split**")
     if not filtered_df.empty:
-        theme_counts = filtered_df["Theme"].value_counts().reset_index()
+        sentiment_counts = filtered_df["Sentiment"].value_counts().reset_index()
+        sentiment_counts.columns = ["Sentiment", "Count"]
+        st.bar_chart(sentiment_counts.set_index("Sentiment"))
+    else:
+        st.info("No data matches active filters.")
+ 
+with col_chart2:
+    st.markdown("**Blocker Themes Distribution**")
+    filtered_neg_df = filtered_df[filtered_df["Theme"] != "Positive"] if not filtered_df.empty else pd.DataFrame()
+    if not filtered_neg_df.empty:
+        theme_counts = filtered_neg_df["Theme"].value_counts().reset_index()
         theme_counts.columns = ["Theme", "Count"]
         st.bar_chart(theme_counts.set_index("Theme"))
     else:
-        st.info("No data matches active filters.")
-
-with col_chart2:
-    st.markdown("**User Cohorts Affected**")
-    if not filtered_df.empty:
-        cohort_counts = filtered_df["User Type"].value_counts().reset_index()
+        st.info("No negative defect data matches active filters.")
+ 
+st.markdown("<br>", unsafe_allow_html=True)
+col_chart3, col_chart4 = st.columns(2)
+with col_chart3:
+    st.markdown("**User Cohorts Affected by Defects**")
+    if not filtered_neg_df.empty:
+        cohort_counts = filtered_neg_df["User Type"].value_counts().reset_index()
         cohort_counts.columns = ["Cohort", "Count"]
         st.bar_chart(cohort_counts.set_index("Cohort"))
     else:
-        st.info("No data matches active filters.")
-
-st.markdown("<br>", unsafe_allow_html=True)
-
+        st.info("No negative defect data matches active filters.")
+ 
 # Pivot Matrix & Report Download
 col_pivot, col_down = st.columns([3, 1])
-
+ 
 with col_pivot:
-    st.subheader("🎲 Theme vs Segment Cross-Tabulation")
-    if not filtered_df.empty:
-        pivot_df = pd.crosstab(filtered_df["Theme"], filtered_df["User Type"], margins=True, margins_name="Total")
-        st.dataframe(pivot_df, width="stretch")
+    st.subheader("🎲 Blocker Theme vs Cohort Pivot Matrix")
+    if not filtered_neg_df.empty:
+        pivot_df = pd.crosstab(filtered_neg_df["Theme"], filtered_neg_df["User Type"], margins=True, margins_name="Total")
+        st.dataframe(pivot_df, use_container_width=True)
     else:
-        st.info("No records to formulate cross-tabs.")
-
+        st.info("No defect records to formulate cross-tabs.")
+ 
 with col_down:
     st.subheader("📥 Export Data")
     st.markdown("Download a fully formatted Excel report containing raw records and PM pivot sheets.")
@@ -559,15 +536,15 @@ with col_down:
         )
     else:
         st.button("💾 DOWNLOAD EXCEL REPORT", disabled=True)
-
+ 
 st.markdown("<br>", unsafe_allow_html=True)
-
+ 
 # Data Table Grid
 st.subheader("📋 Classified Reviews Feed")
 if not filtered_df.empty:
     st.dataframe(
         filtered_df[["Timestamp", "Source", "Theme", "Sentiment", "User Type", "Root Cause", "Text"]],
-        width="stretch",
+        use_container_width=True,
         column_config={
             "Timestamp": st.column_config.DatetimeColumn(format="YYYY-MM-DD HH:mm"),
             "Text": st.column_config.TextColumn(width="large")
