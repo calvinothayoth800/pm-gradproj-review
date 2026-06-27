@@ -375,6 +375,8 @@ st.markdown("<h1 class='app-title'>AI-Native Spotify Discovery Engine</h1>", uns
 st.markdown("<p class='app-subtitle'>Diagnosing recommendation defect loops to optimize cohort engagement & retention</p>", unsafe_allow_html=True)
 
 df = fetch_analyzed_data()
+if not df.empty:
+    df = df[df["Theme"] != "Positive"]
 unprocessed_count = fetch_unprocessed_count()
 
 # Database Classification Controls (Clean Inline Box)
@@ -393,6 +395,7 @@ with col_btn2:
         else:
             with st.spinner("Processing..."):
                 run_ai_classification_in_ui()
+                st.rerun()
                # KPIs Calculations
 if not df.empty:
     total_reviews = len(df)
