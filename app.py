@@ -450,7 +450,45 @@ with col_kpi3:
     st.metric("Primary Blocker Theme", top_defect, help="Top defect category blocking user engagement")
 with col_kpi4:
     st.metric("Positive Sentiment (Overall)", total_pos, help="Total satisfied reviews (kept in Excel for further exploration)")
- 
+# Fetch dynamic spotlight examples
+blocker_example = ""
+if not df.empty:
+    # Find Highly Frustrated reviews for the top theme
+    ex_df = df[(df["Sentiment"] == "Highly Frustrated") & (df["Theme"] == top_defect)]
+    if ex_df.empty:
+        ex_df = df[df["Theme"] == top_defect]
+    if not ex_df.empty:
+        blocker_example = ex_df.iloc[0]["Text"]
+
+positive_example = ""
+if not full_df.empty:
+    pos_reviews = full_df[full_df["Theme"] == "Positive"]
+    if not pos_reviews.empty:
+        positive_example = pos_reviews.iloc[0]["Text"]
+
+# Spotlights Grid (Clean Callouts)
+st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+col_spot1, col_spot2 = st.columns(2)
+
+blocker_snippet = f'"{blocker_example[:220]}..."' if blocker_example else "No blocker spotlight available."
+positive_snippet = f'"{positive_example[:220]}..."' if positive_example else "No positive spotlight available."
+
+with col_spot1:
+    st.markdown(f"""
+        <div style='border: 1px solid #ef4444; border-radius: 8px; padding: 16px; background-color: #1a1012; min-height: 110px;'>
+            <span style='color: #ef4444; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;'>🚨 Critical Blocker Spotlight</span>
+            <p style='margin: 8px 0 0 0; font-size: 0.85rem; color: #f4f4f5; line-height: 1.4; font-style: italic;'>{blocker_snippet}</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+with col_spot2:
+    st.markdown(f"""
+        <div style='border: 1px solid #10b981; border-radius: 8px; padding: 16px; background-color: #0e1714; min-height: 110px;'>
+            <span style='color: #10b981; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;'>💚 Customer Love Spotlight</span>
+            <p style='margin: 8px 0 0 0; font-size: 0.85rem; color: #f4f4f5; line-height: 1.4; font-style: italic;'>{positive_snippet}</p>
+        </div>
+    """, unsafe_allow_html=True)
+
 st.markdown("<br>", unsafe_allow_html=True)
  
 # Collapsible Filtering Matrix (Expander - Clean Layout)
@@ -519,44 +557,37 @@ with col_chart3:
     else:
         st.info("No data matches active filters.")
  
-# Pivot Matrix & Report Download
-col_pivot, col_down = st.columns([3, 1])
- 
-with col_pivot:
-    st.subheader("🎲 Theme vs Segment Cross-Tabulation")
-    if not filtered_df.empty:
-        pivot_df = pd.crosstab(filtered_df["Theme"], filtered_df["User Type"], margins=True, margins_name="Total")
-        st.dataframe(pivot_df, use_container_width=True)
-    else:
-        st.info("No defect records to formulate cross-tabs.")
- 
-with col_down:
-    st.subheader("📥 Export Data")
-    st.markdown("Download a fully formatted Excel report containing raw records and PM pivot sheets (includes positive reviews).")
-    
-    # Formulate export DataFrame including both filtered defects and matching positive reviews
-    if not full_df.empty:
-        filtered_pos = full_df[
-            (full_df["Theme"] == "Positive") &
-            (full_df["Source"].isin(source_filter))
-        ]
-        if search_query and not filtered_pos.empty:
-            filtered_pos = filtered_pos[filtered_pos["Text"].str.contains(search_query, case=False, na=False)]
-        export_df = pd.concat([filtered_df, filtered_pos]) if not filtered_df.empty else filtered_pos
-    else:
-        export_df = pd.DataFrame()
+# Export & Reporting Container
+st.subheader("📥 Export & Reporting")
+with st.container(border=True):
+    col_down_text, col_down_btn = st.columns([3, 1])
+    with col_down_text:
+        st.markdown("<p style='margin:0; font-size:0.9rem; color:#a1a1aa;'>Generate a comprehensive Microsoft Excel report. The report automatically includes all raw reviews, sentiment tags, user cohort mappings, and a <b>PM Pivot Summary</b> cross-tabulation sheet (including positive feedback).</p>", unsafe_allow_html=True)
+    with col_down_btn:
+        # Formulate export DataFrame including both filtered defects and matching positive reviews
+        if not full_df.empty:
+            filtered_pos = full_df[
+                (full_df["Theme"] == "Positive") &
+                (full_df["Source"].isin(source_filter))
+            ]
+            if search_query and not filtered_pos.empty:
+                filtered_pos = filtered_pos[filtered_pos["Text"].str.contains(search_query, case=False, na=False)]
+            export_df = pd.concat([filtered_df, filtered_pos]) if not filtered_df.empty else filtered_pos
+        else:
+            export_df = pd.DataFrame()
 
-    if not export_df.empty:
-        excel_binary = generate_excel_bytes(export_df)
-        st.download_button(
-            label="💾 DOWNLOAD EXCEL REPORT",
-            data=excel_binary,
-            file_name=f"Spotify_Growth_Metrics_{datetime.now().strftime('%Y%m%d')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-    else:
-        st.button("💾 DOWNLOAD EXCEL REPORT", disabled=True)
- 
+        if not export_df.empty:
+            excel_binary = generate_excel_bytes(export_df)
+            st.download_button(
+                label="💾 DOWNLOAD EXCEL REPORT",
+                data=excel_binary,
+                file_name=f"Spotify_Growth_Metrics_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+        else:
+            st.button("💾 DOWNLOAD EXCEL REPORT", disabled=True, use_container_width=True)
+
 st.markdown("<br>", unsafe_allow_html=True)
  
 # Data Table Grid
