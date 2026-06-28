@@ -81,39 +81,30 @@ st.markdown("""
         letter-spacing: 0.5px;
     }
     
-    /* Custom Control Box */
-    .control-box {
-        background-color: #121214;
-        border: 1px solid #27272a;
-        border-radius: 8px;
-        padding: 20px;
-        margin-bottom: 20px;
-    }
-    .control-title {
-        font-size: 1.05rem;
-        font-weight: 600;
-        color: #f4f4f5;
-        margin-bottom: 4px;
-    }
-    .control-desc {
-        font-size: 0.85rem;
-        color: #a1a1aa;
+    /* Custom Border Containers (st.container(border=True)) */
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        background-color: #121214 !important;
+        border: 1px solid #27272a !important;
+        border-radius: 8px !important;
+        padding: 20px !important;
+        margin-bottom: 20px !important;
     }
     
     /* Action Buttons (Clean Slate) */
     .stButton>button {
-        background-color: #27272a !important;
-        color: #f4f4f5 !important;
-        border: 1px solid #3f3f46 !important;
+        background-color: #18181b !important;
+        color: #fafafa !important;
+        border: 1px solid #27272a !important;
         border-radius: 6px !important;
         font-weight: 500 !important;
         font-size: 0.85rem !important;
-        padding: 8px 16px !important;
-        transition: background-color 0.2s, border-color 0.2s !important;
+        padding: 6px 12px !important;
+        transition: all 0.15s ease !important;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
     }
     .stButton>button:hover {
-        background-color: #3f3f46 !important;
-        border-color: #52525b !important;
+        background-color: #27272a !important;
+        border-color: #3f3f46 !important;
         color: #ffffff !important;
     }
     
@@ -126,6 +117,31 @@ st.markdown("""
     div[data-testid="stMultiSelect"] > div {
         background-color: #121214 !important;
         border: 1px solid #27272a !important;
+    }
+    
+    /* Input Fields (Text Inputs, Selectboxes) */
+    div[data-testid="stTextInput"] > div > div > input {
+        background-color: #121214 !important;
+        color: #f4f4f5 !important;
+        border: 1px solid #27272a !important;
+        border-radius: 6px !important;
+    }
+    
+    /* Sleek Linear-style white progress bar */
+    div[data-testid="stProgress"] > div > div > div > div {
+        background-color: #fafafa !important;
+    }
+    div[data-testid="stProgress"] {
+        padding-top: 10px !important;
+        padding-bottom: 10px !important;
+    }
+    
+    /* Style Alert/Notification Boxes to match dark theme */
+    div[data-testid="stNotification"] {
+        background-color: #18181b !important;
+        border: 1px solid #27272a !important;
+        border-radius: 8px !important;
+        color: #f4f4f5 !important;
     }
     
     /* Custom scrollbars */
@@ -389,23 +405,29 @@ else:
     total_pos = 0
     df = pd.DataFrame()
 
-# Database Classification Controls (Clean Inline Box)
-st.markdown(f"""
-    <div class='control-box'>
-        <div class='control-title'>Review Classification Manager</div>
-        <div class='control-desc'>The pipeline has identified <b>{unprocessed_count}</b> unprocessed reviews in the database queue. Click below to start the AI classification process. Already processed reviews are skipped automatically.</div>
-    </div>
-""", unsafe_allow_html=True)
+# Initialize session state for classification run
+if "run_classification" not in st.session_state:
+    st.session_state.run_classification = False
 
-col_btn1, col_btn2 = st.columns([3, 1])
-with col_btn2:
-    if st.button("Start Classification Run"):
-        if unprocessed_count == 0:
-            st.warning("All records already classified.")
-        else:
-            with st.spinner("Processing..."):
-                run_ai_classification_in_ui()
-                st.rerun()
+# Database Classification Controls (Clean Inline Box)
+with st.container(border=True):
+    col_desc, col_btn = st.columns([3, 1])
+    with col_desc:
+        st.markdown("<h3 style='margin:0; font-size:1.1rem; font-weight:600; color:#fafafa;'>⚡ Review Classification Manager</h3>", unsafe_allow_html=True)
+        st.markdown(f"<p style='margin:4px 0 0 0; font-size:0.85rem; color:#a1a1aa;'>The pipeline has identified <b>{unprocessed_count}</b> unprocessed reviews in the database queue. Already processed reviews are skipped automatically.</p>", unsafe_allow_html=True)
+    with col_btn:
+        st.write("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+        if st.button("Start Classification Run", use_container_width=True):
+            if unprocessed_count == 0:
+                st.warning("All records already classified.")
+            else:
+                st.session_state.run_classification = True
+
+# Run classification outside of columns at full width
+if st.session_state.run_classification:
+    run_ai_classification_in_ui()
+    st.session_state.run_classification = False
+    st.rerun()
                 # KPIs Calculations
 if not df.empty:
     total_defects = len(df)
