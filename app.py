@@ -373,8 +373,16 @@ def generate_excel_bytes(df):
 
 st.markdown("<h1 class='app-title'>AI-Native Spotify Discovery Engine</h1>", unsafe_allow_html=True)
 st.markdown("<p class='app-subtitle'>Diagnosing recommendation defect loops to optimize cohort engagement & retention</p>", unsafe_allow_html=True)
-df = fetch_analyzed_data()
+full_df = fetch_analyzed_data()
 unprocessed_count = fetch_unprocessed_count()
+
+# Calculate tiny overall positive stats from database
+if not full_df.empty:
+    total_pos = len(full_df[full_df["Theme"] == "Positive"])
+    df = full_df[full_df["Theme"] != "Positive"]
+else:
+    total_pos = 0
+    df = pd.DataFrame()
 
 # Database Classification Controls (Clean Inline Box)
 st.markdown(f"""
@@ -395,36 +403,26 @@ with col_btn2:
                 st.rerun()
                 # KPIs Calculations
 if not df.empty:
-    total_reviews = len(df)
-    pos_df = df[df["Theme"] == "Positive"]
-    neg_df = df[df["Theme"] != "Positive"]
-    
-    total_pos = len(pos_df)
-    total_neg = len(neg_df)
-    defect_rate = f"{int(total_neg / total_reviews * 100)}%" if total_reviews > 0 else "0%"
-    
-    if not neg_df.empty:
-        top_defect = neg_df["Theme"].value_counts().index[0]
-    else:
-        top_defect = "None"
+    total_defects = len(df)
+    highly_frustrated = len(df[df["Sentiment"] == "Highly Frustrated"])
+    frustration_rate = f"{int(highly_frustrated / total_defects * 100)}%" if total_defects > 0 else "0%"
+    top_defect = df["Theme"].value_counts().index[0]
 else:
-    total_reviews = 0
-    total_pos = 0
-    total_neg = 0
-    defect_rate = "N/A"
+    total_defects = 0
+    frustration_rate = "N/A"
     top_defect = "N/A"
 
 # KPIs Grid
 col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
 
 with col_kpi1:
-    st.metric("Total Analyzed", total_reviews, help="Total number of processed Spotify reviews")
+    st.metric("Total Defects Ingested", total_defects, help="Total number of active product pain points/complaints")
 with col_kpi2:
-    st.metric("Active Defects", total_neg, help="Total complaints and product pain points")
+    st.metric("Frustration Rate", frustration_rate, help="Percentage of reviews flagged as Highly Frustrated")
 with col_kpi3:
-    st.metric("Positive Sentiment", total_pos, help="Total satisfied user reviews")
+    st.metric("Primary Blocker Theme", top_defect, help="Top defect category blocking user engagement")
 with col_kpi4:
-    st.metric("Defect Rate", defect_rate, help="Percentage of reviews flagged as complaints")
+    st.metric("Positive Sentiment (Overall)", total_pos, help="Total satisfied reviews (kept in Excel for further exploration)")
  
 st.markdown("<br>", unsafe_allow_html=True)
  
@@ -464,11 +462,20 @@ else:
     filtered_df = pd.DataFrame()
  
 # Visualizations
-st.subheader("📊 Sentiment Analysis & Blocker Diagnostics")
-col_chart1, col_chart2 = st.columns(2)
+st.subheader("📊 Defect Diagnostics & User Cohorts")
+col_chart1, col_chart2, col_chart3 = st.columns(3)
  
 with col_chart1:
-    st.markdown("**Overall Sentiment Distribution**")
+    st.markdown("**Blocker Themes Distribution**")
+    if not filtered_df.empty:
+        theme_counts = filtered_df["Theme"].value_counts().reset_index()
+        theme_counts.columns = ["Theme", "Count"]
+        st.bar_chart(theme_counts.set_index("Theme"))
+    else:
+        st.info("No data matches active filters.")
+ 
+with col_chart2:
+    st.markdown("**Sentiment Severity Distribution**")
     if not filtered_df.empty:
         sentiment_counts = filtered_df["Sentiment"].value_counts().reset_index()
         sentiment_counts.columns = ["Sentiment", "Count"]
@@ -476,42 +483,14 @@ with col_chart1:
     else:
         st.info("No data matches active filters.")
  
-with col_chart2:
-    st.markdown("**Blocker Themes Distribution (Defects Only)**")
-    filtered_neg_df = filtered_df[filtered_df["Theme"] != "Positive"] if not filtered_df.empty else pd.DataFrame()
-    if not filtered_neg_df.empty:
-        theme_counts = filtered_neg_df["Theme"].value_counts().reset_index()
-        theme_counts.columns = ["Theme", "Count"]
-        st.bar_chart(theme_counts.set_index("Theme"))
-    else:
-        st.info("No negative defect data matches active filters.")
- 
-st.markdown("<br>", unsafe_allow_html=True)
-col_chart3, col_chart4 = st.columns(2)
 with col_chart3:
-    st.markdown("**Cohort Contrast: Positive vs Defects**")
+    st.markdown("**User Cohorts Affected**")
     if not filtered_df.empty:
-        filtered_df_copy = filtered_df.copy()
-        filtered_df_copy["Feedback Category"] = filtered_df_copy["Theme"].apply(
-            lambda x: "Positive" if x == "Positive" else "Defect"
-        )
-        cohort_crosstab = pd.crosstab(filtered_df_copy["User Type"], filtered_df_copy["Feedback Category"])
-        for col in ["Defect", "Positive"]:
-            if col not in cohort_crosstab.columns:
-                cohort_crosstab[col] = 0
-        st.bar_chart(cohort_crosstab[["Defect", "Positive"]])
+        cohort_counts = filtered_df["User Type"].value_counts().reset_index()
+        cohort_counts.columns = ["Cohort", "Count"]
+        st.bar_chart(cohort_counts.set_index("Cohort"))
     else:
         st.info("No data matches active filters.")
-
-with col_chart4:
-    st.markdown("**Cohort Distribution (Defects Only)**")
-    filtered_neg_df = filtered_df[filtered_df["Theme"] != "Positive"] if not filtered_df.empty else pd.DataFrame()
-    if not filtered_neg_df.empty:
-        cohort_neg = filtered_neg_df["User Type"].value_counts().reset_index()
-        cohort_neg.columns = ["Cohort", "Count"]
-        st.bar_chart(cohort_neg.set_index("Cohort"))
-    else:
-        st.info("No negative defect data matches active filters.")
  
 # Pivot Matrix & Report Download
 col_pivot, col_down = st.columns([3, 1])
@@ -522,13 +501,26 @@ with col_pivot:
         pivot_df = pd.crosstab(filtered_df["Theme"], filtered_df["User Type"], margins=True, margins_name="Total")
         st.dataframe(pivot_df, use_container_width=True)
     else:
-        st.info("No records to formulate cross-tabs.")
+        st.info("No defect records to formulate cross-tabs.")
  
 with col_down:
     st.subheader("📥 Export Data")
-    st.markdown("Download a fully formatted Excel report containing raw records and PM pivot sheets.")
-    if not filtered_df.empty:
-        excel_binary = generate_excel_bytes(filtered_df)
+    st.markdown("Download a fully formatted Excel report containing raw records and PM pivot sheets (includes positive reviews).")
+    
+    # Formulate export DataFrame including both filtered defects and matching positive reviews
+    if not full_df.empty:
+        filtered_pos = full_df[
+            (full_df["Theme"] == "Positive") &
+            (full_df["Source"].isin(source_filter))
+        ]
+        if search_query and not filtered_pos.empty:
+            filtered_pos = filtered_pos[filtered_pos["Text"].str.contains(search_query, case=False, na=False)]
+        export_df = pd.concat([filtered_df, filtered_pos]) if not filtered_df.empty else filtered_pos
+    else:
+        export_df = pd.DataFrame()
+
+    if not export_df.empty:
+        excel_binary = generate_excel_bytes(export_df)
         st.download_button(
             label="💾 DOWNLOAD EXCEL REPORT",
             data=excel_binary,
