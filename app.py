@@ -237,6 +237,7 @@ def run_ai_classification_in_ui():
     progress_bar = st.progress(0.0)
     status_text = st.empty()
     
+    batch_size = 10
     analytics_records = []
     processed_count = 0
     delay = 3.0 if GROQ_API_KEY else 0.1
@@ -246,7 +247,8 @@ def run_ai_classification_in_ui():
         review_id = record["review_id"]
         text = record["text"]
         
-        status_text.markdown(f"**⚡ Classifying Review [{i+1}/{limit}]** ID: `{review_id}`")
+        saved_so_far = processed_count - len(analytics_records)
+        status_text.markdown(f"**⚡ Classifying Review [{i+1}/{limit}]** ID: `{review_id}` *(Saved to DB: {saved_so_far})*")
         
         analysis = analyze_review_with_groq(text)
         
@@ -261,17 +263,20 @@ def run_ai_classification_in_ui():
         processed_count += 1
         progress_bar.progress(float(processed_count) / float(limit))
         
+        # Progressive batch upload to avoid timeout data loss
+        if len(analytics_records) >= batch_size or i == limit - 1:
+            try:
+                supabase.table("ai_analytics").upsert(analytics_records, on_conflict="review_id").execute()
+                analytics_records = []  # Reset batch buffer
+            except Exception as e:
+                st.error(f"Failed to upload current batch: {str(e)}")
+                return
+                
         if i < limit - 1:
             time.sleep(delay)
             
-    if analytics_records:
-        try:
-            status_text.markdown("📤 *Saving classifications to database...*")
-            supabase.table("ai_analytics").upsert(analytics_records, on_conflict="review_id").execute()
-            st.success(f"✅ Classification complete. Saved {processed_count} records.")
-            st.cache_data.clear()
-        except Exception as e:
-            st.error(f"Failed to upload analytics: {str(e)}")
+    st.success(f"✅ Classification complete. Saved {processed_count} records.")
+    st.cache_data.clear()
 
 def generate_excel_bytes(df):
     output = io.BytesIO()
