@@ -504,11 +504,11 @@ st.markdown("<br>", unsafe_allow_html=True)
  
 # Collapsible Filtering Matrix (Expander - Clean Layout)
 with st.expander("Filter Matrix", expanded=False):
-    if not df.empty:
-        source_opts = list(df["Source"].unique())
-        theme_opts = list(df["Theme"].unique())
-        user_opts = list(df["User Type"].unique())
-        sentiment_opts = list(df["Sentiment"].unique())
+    if not full_df.empty:
+        source_opts = list(full_df["Source"].unique())
+        theme_opts = list(full_df["Theme"].unique())
+        user_opts = list(full_df["User Type"].unique())
+        sentiment_opts = list(full_df["Sentiment"].unique())
     else:
         source_opts, theme_opts, user_opts, sentiment_opts = [], [], [], []
         
@@ -516,7 +516,7 @@ with st.expander("Filter Matrix", expanded=False):
     with f_col1:
         source_filter = st.multiselect("Source", options=source_opts, default=source_opts)
     with f_col2:
-        theme_filter = st.multiselect("Blocker Theme", options=theme_opts, default=theme_opts)
+        theme_filter = st.multiselect("Theme/Blocker", options=theme_opts, default=theme_opts)
     with f_col3:
         user_filter = st.multiselect("User Cohort", options=user_opts, default=user_opts)
     with f_col4:
@@ -524,31 +524,23 @@ with st.expander("Filter Matrix", expanded=False):
         
     search_query = st.text_input("Search Text Content", "")
  
-# Apply Filters
-if not df.empty:
-    filtered_df = df[
-        (df["Source"].isin(source_filter)) &
-        (df["Theme"].isin(theme_filter)) &
-        (df["User Type"].isin(user_filter)) &
-        (df["Sentiment"].isin(sentiment_filter))
+# Apply Filters on the full dataset (both negative defects and positive features)
+if not full_df.empty:
+    filtered_full_df = full_df[
+        (full_df["Source"].isin(source_filter)) &
+        (full_df["Theme"].isin(theme_filter)) &
+        (full_df["User Type"].isin(user_filter)) &
+        (full_df["Sentiment"].isin(sentiment_filter))
     ]
     if search_query:
-        filtered_df = filtered_df[filtered_df["Text"].str.contains(search_query, case=False, na=False)]
+        filtered_full_df = filtered_full_df[filtered_full_df["Text"].str.contains(search_query, case=False, na=False)]
 else:
-    filtered_df = pd.DataFrame()
+    filtered_full_df = pd.DataFrame()
 
-# Filter positive reviews for visual charts
-if not full_df.empty:
-    pos_themes = ["Accurate Recommendations", "Great UI/UX", "Smart Curation", "Positive"]
-    pos_df = full_df[full_df["Theme"].isin(pos_themes)]
-    if not pos_df.empty:
-        filtered_pos_df = pos_df[pos_df["Source"].isin(source_filter)]
-        if search_query:
-            filtered_pos_df = filtered_pos_df[filtered_pos_df["Text"].str.contains(search_query, case=False, na=False)]
-    else:
-        filtered_pos_df = pd.DataFrame()
-else:
-    filtered_pos_df = pd.DataFrame()
+# Separate the filtered dataset into negative defects and positive features for charts
+pos_themes = ["Accurate Recommendations", "Great UI/UX", "Smart Curation", "Positive"]
+filtered_df = filtered_full_df[~filtered_full_df["Theme"].isin(pos_themes)] if not filtered_full_df.empty else pd.DataFrame()
+filtered_pos_df = filtered_full_df[filtered_full_df["Theme"].isin(pos_themes)] if not filtered_full_df.empty else pd.DataFrame()
  
 # Visualizations
 st.subheader("📊 Defect Diagnostics & User Cohorts")
@@ -614,18 +606,8 @@ with st.container(border=True):
     with col_down_text:
         st.markdown("<p style='margin:0; font-size:0.9rem; color:#a1a1aa;'>Generate a comprehensive Microsoft Excel report. The report automatically includes all raw reviews, sentiment tags, user cohort mappings, and a <b>PM Pivot Summary</b> cross-tabulation sheet (including positive feedback).</p>", unsafe_allow_html=True)
     with col_down_btn:
-        # Formulate export DataFrame including both filtered defects and matching positive reviews
-        if not full_df.empty:
-            pos_themes = ["Accurate Recommendations", "Great UI/UX", "Smart Curation", "Positive"]
-            filtered_pos = full_df[
-                (full_df["Theme"].isin(pos_themes)) &
-                (full_df["Source"].isin(source_filter))
-            ]
-            if search_query and not filtered_pos.empty:
-                filtered_pos = filtered_pos[filtered_pos["Text"].str.contains(search_query, case=False, na=False)]
-            export_df = pd.concat([filtered_df, filtered_pos]) if not filtered_df.empty else filtered_pos
-        else:
-            export_df = pd.DataFrame()
+        # Formulate export DataFrame based on active Filter Matrix selections
+        export_df = filtered_full_df
 
         if not export_df.empty:
             excel_binary = generate_excel_bytes(export_df)
@@ -643,9 +625,9 @@ st.markdown("<br>", unsafe_allow_html=True)
  
 # Data Table Grid
 st.subheader("📋 Classified Reviews Feed")
-if not filtered_df.empty:
+if not filtered_full_df.empty:
     st.dataframe(
-        filtered_df[["Timestamp", "Source", "Theme", "Sentiment", "User Type", "Root Cause", "Text"]],
+        filtered_full_df[["Timestamp", "Source", "Theme", "Sentiment", "User Type", "Root Cause", "Text"]],
         use_container_width=True,
         column_config={
             "Timestamp": st.column_config.DatetimeColumn(format="YYYY-MM-DD HH:mm"),
