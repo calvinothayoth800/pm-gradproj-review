@@ -30,7 +30,10 @@ MAX_BATCH_SIZE = int(os.getenv("MAX_BATCH_SIZE", "900"))  # Cap processing at 90
 KEYWORDS = ["discovery", "recommendation", "smart shuffle", "shuffle", "algorithm", "same songs", "echo chamber", "loop"]
 
 # Allowed enums for validation
-THEME_ENUM = ["Echo Chamber", "Smart Shuffle Failure", "Niche Genre Blending", "UI/UX Clutter", "Positive"]
+THEME_ENUM = [
+    "Echo Chamber", "Smart Shuffle Failure", "Niche Genre Blending", "UI/UX Clutter",
+    "Accurate Recommendations", "Great UI/UX", "Smart Curation", "Positive"
+]
 SENTIMENT_ENUM = ["Negative", "Highly Frustrated", "Disappointed", "Positive"]
 USER_TYPE_ENUM = ["Power User", "Casual Listener", "Audiophile", "Playlist Curator"]
 
@@ -212,8 +215,16 @@ def rule_based_fallback(text):
     is_positive = any(pw in text_lower for pw in pos_words) and not any(nw in text_lower for nw in neg_words)
     
     if is_positive:
+        theme = "Positive"
+        if "recommend" in text_lower or "preference" in text_lower or "sound" in text_lower or "study" in text_lower:
+            theme = "Accurate Recommendations"
+        elif "ui" in text_lower or "ux" in text_lower or "smooth" in text_lower or "beautiful" in text_lower:
+            theme = "Great UI/UX"
+        elif "playlist" in text_lower or "mix" in text_lower or "curat" in text_lower:
+            theme = "Smart Curation"
+            
         return {
-            "theme": "Positive",
+            "theme": theme,
             "sentiment": "Positive",
             "user_type": "Casual Listener" if "casual" in text_lower else "Power User",
             "root_cause": "User is satisfied with the app"
@@ -292,7 +303,7 @@ def analyze_review_with_groq(text):
 First, determine if the review is primarily Positive/Neutral (the user is satisfied, praises the app, or lists no issues/frustrations) or Negative (complaining about features, finding bugs, listing design flaws, or experiencing frustrations).
 
 If the review is Positive/Neutral, classify it exactly as follows:
-- theme: "Positive"
+- theme: "Accurate Recommendations" | "Great UI/UX" | "Smart Curation" | "Positive"
 - sentiment: "Positive"
 - user_type: "Power User" | "Casual Listener" | "Audiophile" | "Playlist Curator" (choose the most matching cohort based on their usage profile described in the review)
 - root_cause: A concise 5-to-7 word description summarizing why they are satisfied.

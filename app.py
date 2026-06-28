@@ -81,15 +81,6 @@ st.markdown("""
         letter-spacing: 0.5px;
     }
     
-    /* Custom Border Containers (st.container(border=True)) */
-    div[data-testid="stVerticalBlockBorderWrapper"] {
-        background-color: #121214 !important;
-        border: 1px solid #27272a !important;
-        border-radius: 8px !important;
-        padding: 20px !important;
-        margin-bottom: 20px !important;
-    }
-    
     /* Action Buttons (Clean Slate) */
     .stButton>button {
         background-color: #18181b !important;
@@ -409,30 +400,36 @@ else:
 if "run_classification" not in st.session_state:
     st.session_state.run_classification = False
 
-# Database Classification Controls (Clean Inline Box)
-with st.container(border=True):
+# Database Classification Controls (Clean Open Layout)
+try:
+    col_desc, col_btn = st.columns([3, 1], vertical_alignment="center")
+except TypeError:
     col_desc, col_btn = st.columns([3, 1])
-    with col_desc:
-        st.markdown("<h3 style='margin:0; font-size:1.1rem; font-weight:600; color:#fafafa;'>⚡ Review Classification Manager</h3>", unsafe_allow_html=True)
-        st.markdown(f"<p style='margin:4px 0 0 0; font-size:0.85rem; color:#a1a1aa;'>The pipeline has identified <b>{unprocessed_count}</b> unprocessed reviews in the database queue. Already processed reviews are skipped automatically.</p>", unsafe_allow_html=True)
-        
-        # Display active model status
-        api_status = "<span style='color: #10b981; font-weight: 500; font-size: 0.78rem;'>● Groq AI Model Active (Llama 3.3)</span>" if GROQ_API_KEY else "<span style='color: #f59e0b; font-weight: 500; font-size: 0.78rem;'>● Local Heuristics Fallback Active (Groq API Key not configured)</span>"
-        st.markdown(f"<div style='margin-top: 6px;'>{api_status}</div>", unsafe_allow_html=True)
-    with col_btn:
-        st.write("<div style='height: 8px;'></div>", unsafe_allow_html=True)
-        if st.button("Start Classification Run", use_container_width=True):
-            if unprocessed_count == 0:
-                st.warning("All records already classified.")
-            else:
-                st.session_state.run_classification = True
+
+with col_desc:
+    st.markdown("<h3 style='margin:0; font-size:1.15rem; font-weight:600; color:#fafafa;'>⚡ Review Classification Manager</h3>", unsafe_allow_html=True)
+    st.markdown(f"<p style='margin:4px 0 0 0; font-size:0.85rem; color:#a1a1aa;'>The pipeline has identified <b>{unprocessed_count}</b> unprocessed reviews in the database queue. Already processed reviews are skipped automatically.</p>", unsafe_allow_html=True)
+    
+    # Display active model status
+    api_status = "<span style='color: #10b981; font-weight: 500; font-size: 0.78rem;'>● Groq AI Model Active (Llama 3.3)</span>" if GROQ_API_KEY else "<span style='color: #f59e0b; font-weight: 500; font-size: 0.78rem;'>● Local Heuristics Fallback Active (Groq API Key not configured)</span>"
+    st.markdown(f"<div style='margin-top: 6px;'>{api_status}</div>", unsafe_allow_html=True)
+
+with col_btn:
+    if st.button("Start Classification Run", use_container_width=True):
+        if unprocessed_count == 0:
+            st.warning("All records already classified.")
+        else:
+            st.session_state.run_classification = True
 
 # Run classification outside of columns at full width
 if st.session_state.run_classification:
     run_ai_classification_in_ui()
     st.session_state.run_classification = False
     st.rerun()
-                # KPIs Calculations
+
+st.markdown("<hr style='border: 0; border-top: 1px solid #27272a; margin: 15px 0 25px 0;'>", unsafe_allow_html=True)
+
+# KPIs Calculations
 if not df.empty:
     total_defects = len(df)
     highly_frustrated = len(df[df["Sentiment"] == "Highly Frustrated"])
@@ -442,6 +439,21 @@ else:
     total_defects = 0
     frustration_rate = "N/A"
     top_defect = "N/A"
+
+if not full_df.empty:
+    pos_df = full_df[full_df["Theme"].isin(["Accurate Recommendations", "Great UI/UX", "Smart Curation", "Positive"])]
+    total_pos = len(pos_df)
+    if not pos_df.empty:
+        specific_pos = pos_df[pos_df["Theme"] != "Positive"]
+        if not specific_pos.empty:
+            top_positive_theme = specific_pos["Theme"].value_counts().index[0]
+        else:
+            top_positive_theme = pos_df["Theme"].value_counts().index[0]
+    else:
+        top_positive_theme = "None"
+else:
+    total_pos = 0
+    top_positive_theme = "N/A"
 
 # KPIs Grid
 col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
@@ -453,45 +465,7 @@ with col_kpi2:
 with col_kpi3:
     st.metric("Primary Blocker Theme", top_defect, help="Top defect category blocking user engagement")
 with col_kpi4:
-    st.metric("Positive Sentiment (Overall)", total_pos, help="Total satisfied reviews (kept in Excel for further exploration)")
-# Fetch dynamic spotlight examples
-blocker_example = ""
-if not df.empty:
-    # Find Highly Frustrated reviews for the top theme
-    ex_df = df[(df["Sentiment"] == "Highly Frustrated") & (df["Theme"] == top_defect)]
-    if ex_df.empty:
-        ex_df = df[df["Theme"] == top_defect]
-    if not ex_df.empty:
-        blocker_example = ex_df.iloc[0]["Text"]
-
-positive_example = ""
-if not full_df.empty:
-    pos_reviews = full_df[full_df["Theme"] == "Positive"]
-    if not pos_reviews.empty:
-        positive_example = pos_reviews.iloc[0]["Text"]
-
-# Spotlights Grid (Clean Callouts)
-st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-col_spot1, col_spot2 = st.columns(2)
-
-blocker_snippet = f'"{blocker_example[:220]}..."' if blocker_example else "No blocker spotlight available."
-positive_snippet = f'"{positive_example[:220]}..."' if positive_example else "No positive spotlight available."
-
-with col_spot1:
-    st.markdown(f"""
-        <div style='border: 1px solid #ef4444; border-radius: 8px; padding: 16px; background-color: #1a1012; min-height: 110px;'>
-            <span style='color: #ef4444; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;'>🚨 Critical Blocker Spotlight</span>
-            <p style='margin: 8px 0 0 0; font-size: 0.85rem; color: #f4f4f5; line-height: 1.4; font-style: italic;'>{blocker_snippet}</p>
-        </div>
-    """, unsafe_allow_html=True)
-
-with col_spot2:
-    st.markdown(f"""
-        <div style='border: 1px solid #10b981; border-radius: 8px; padding: 16px; background-color: #0e1714; min-height: 110px;'>
-            <span style='color: #10b981; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px;'>💚 Customer Love Spotlight</span>
-            <p style='margin: 8px 0 0 0; font-size: 0.85rem; color: #f4f4f5; line-height: 1.4; font-style: italic;'>{positive_snippet}</p>
-        </div>
-    """, unsafe_allow_html=True)
+    st.metric("Top Positive Feature", top_positive_theme, help=f"Total positive reviews: {total_pos} (kept in Excel for further exploration)")
 
 st.markdown("<br>", unsafe_allow_html=True)
  
