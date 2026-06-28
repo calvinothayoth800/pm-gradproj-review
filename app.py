@@ -390,8 +390,9 @@ unprocessed_count = fetch_unprocessed_count()
 
 # Calculate tiny overall positive stats from database
 if not full_df.empty:
-    total_pos = len(full_df[full_df["Theme"] == "Positive"])
-    df = full_df[full_df["Theme"] != "Positive"]
+    pos_themes = ["Accurate Recommendations", "Great UI/UX", "Smart Curation", "Positive"]
+    total_pos = len(full_df[full_df["Theme"].isin(pos_themes)])
+    df = full_df[~full_df["Theme"].isin(pos_themes)]
 else:
     total_pos = 0
     df = pd.DataFrame()

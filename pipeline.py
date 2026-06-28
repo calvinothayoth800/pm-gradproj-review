@@ -32,6 +32,7 @@ KEYWORDS = ["discovery", "recommendation", "smart shuffle", "shuffle", "algorith
 # Allowed enums for validation
 THEME_ENUM = [
     "Echo Chamber", "Smart Shuffle Failure", "Niche Genre Blending", "UI/UX Clutter",
+    "Ad & Subscription Barriers", "App Performance & Crashes", "Offline Sync & Connection",
     "Accurate Recommendations", "Great UI/UX", "Smart Curation", "Positive"
 ]
 SENTIMENT_ENUM = ["Negative", "Highly Frustrated", "Disappointed", "Positive"]
@@ -246,11 +247,21 @@ def rule_based_fallback(text):
         sentiment = "Disappointed"
         user_type = "Audiophile"
         root_cause = "Algorithmic blending mixes unrelated genres"
-    elif "ad" in text_lower or "ads" in text_lower or "commercial" in text_lower:
-        theme = "UI/UX Clutter"
+    elif any(x in text_lower for x in ["ad", "ads", "commercial", "premium", "pay", "money", "subscription"]):
+        theme = "Ad & Subscription Barriers"
         sentiment = "Negative"
         user_type = "Casual Listener"
-        root_cause = "Excessive or unskippable advertisements"
+        root_cause = "Premium constraints or excessive advertisements"
+    elif any(x in text_lower for x in ["crash", "freeze", "lag", "slow", "hang", "force close", "stop"]):
+        theme = "App Performance & Crashes"
+        sentiment = "Highly Frustrated"
+        user_type = "Power User"
+        root_cause = "Application crashes or severe performance lag"
+    elif any(x in text_lower for x in ["offline", "download", "wifi", "connection", "no internet"]):
+        theme = "Offline Sync & Connection"
+        sentiment = "Disappointed"
+        user_type = "Casual Listener"
+        root_cause = "Offline playback or connectivity errors"
     elif "ui" in text_lower or "ux" in text_lower or "clutter" in text_lower:
         theme = "UI/UX Clutter"
         sentiment = "Negative"
@@ -309,7 +320,7 @@ If the review is Positive/Neutral, classify it exactly as follows:
 - root_cause: A concise 5-to-7 word description summarizing why they are satisfied.
 
 If the review is Negative, classify it exactly as follows:
-- theme: "Echo Chamber" | "Smart Shuffle Failure" | "Niche Genre Blending" | "UI/UX Clutter"
+- theme: "Echo Chamber" | "Smart Shuffle Failure" | "Niche Genre Blending" | "UI/UX Clutter" | "Ad & Subscription Barriers" | "App Performance & Crashes" | "Offline Sync & Connection"
 - sentiment: "Negative" | "Highly Frustrated" | "Disappointed"
 - user_type: "Power User" | "Casual Listener" | "Audiophile" | "Playlist Curator"
 - root_cause: A concise 5-to-7 word description of the exact, specific mechanical defect they are experiencing. Avoid generic descriptions like "Stale recommendations" or "Smart shuffle failure". Be highly specific to the user's scenario. For example, if a user cleared their liked list but the taste profile didn't update, write "Taste profile persists library reset". If they complain about ads interrupting music, write "Excessive ads interrupt song listening".
