@@ -336,46 +336,78 @@ def generate_excel_bytes(df):
         ws1.column_dimensions[col_letter].width = min(max(max_len + 3, 10), 50)
         
     ws2.views.sheetView[0].showGridLines = True
-    ws2["A2"] = "Spotify Growth Analysis - Blocker vs Cohort Pivot Summary"
+    ws2["A2"] = "Spotify Growth Analysis - Executive PM Report"
     ws2["A2"].font = title_font
     
-    pivot = pd.crosstab(df["Theme"], df["User Type"], margins=True, margins_name="Total")
-    pivot_cols = list(pivot.columns)
+    pos_themes = ["Accurate Recommendations", "Great UI/UX", "Smart Curation", "Positive"]
+    neg_df = df[~df["Theme"].isin(pos_themes)]
+    pos_df = df[df["Theme"].isin(pos_themes)]
     
-    ws2.cell(row=4, column=1, value="Theme / Cohort").font = header_font
-    ws2.cell(row=4, column=1).fill = header_fill
-    ws2.cell(row=4, column=1).alignment = Alignment(horizontal="center")
-    
-    for c_idx, col_name in enumerate(pivot_cols, start=2):
-        cell = ws2.cell(row=4, column=c_idx, value=col_name)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = Alignment(horizontal="center")
+    if not neg_df.empty:
+        pivot_neg = pd.crosstab(neg_df["Theme"], neg_df["User Type"], margins=True, margins_name="Total")
+    else:
+        pivot_neg = pd.DataFrame()
         
-    for r_idx, theme_name in enumerate(pivot.index, start=5):
-        cell = ws2.cell(row=r_idx, column=1, value=theme_name)
-        if theme_name == "Total":
-            cell.font = total_font
-            cell.fill = accent_fill
-        else:
-            cell.font = body_font
-        cell.border = thin_border
+    if not pos_df.empty:
+        pivot_pos = pd.crosstab(pos_df["Theme"], pos_df["User Type"], margins=True, margins_name="Total")
+    else:
+        pivot_pos = pd.DataFrame()
+
+    def write_pivot_table(ws, pivot, start_row, title):
+        # Write section title
+        ws.cell(row=start_row, column=1, value=title).font = Font(name=font_family, size=12, bold=True, color="161925")
+        
+        if pivot.empty:
+            ws.cell(row=start_row + 1, column=1, value="No records available for this section.").font = body_font
+            return start_row + 3
+            
+        pivot_cols = list(pivot.columns)
+        
+        # Write headers
+        ws.cell(row=start_row + 2, column=1, value="Theme / Cohort").font = header_font
+        ws.cell(row=start_row + 2, column=1).fill = header_fill
+        ws.cell(row=start_row + 2, column=1).alignment = Alignment(horizontal="center", vertical="center")
         
         for c_idx, col_name in enumerate(pivot_cols, start=2):
-            val = int(pivot.loc[theme_name, col_name])
-            val_cell = ws2.cell(row=r_idx, column=c_idx, value=val)
-            val_cell.border = thin_border
-            val_cell.alignment = Alignment(horizontal="right")
-            if theme_name == "Total" or col_name == "Total":
-                val_cell.font = total_font
-                val_cell.fill = accent_fill
+            cell = ws.cell(row=start_row + 2, column=c_idx, value=col_name)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            
+        # Write rows
+        current_row = start_row + 3
+        for theme_name in pivot.index:
+            cell = ws.cell(row=current_row, column=1, value=theme_name)
+            if theme_name == "Total":
+                cell.font = total_font
+                cell.fill = accent_fill
             else:
-                val_cell.font = body_font
-                
+                cell.font = body_font
+            cell.border = thin_border
+            
+            for c_idx, col_name in enumerate(pivot_cols, start=2):
+                val = int(pivot.loc[theme_name, col_name])
+                val_cell = ws.cell(row=current_row, column=c_idx, value=val)
+                val_cell.border = thin_border
+                val_cell.alignment = Alignment(horizontal="right", vertical="center")
+                if theme_name == "Total" or col_name == "Total":
+                    val_cell.font = total_font
+                    val_cell.fill = accent_fill
+                else:
+                    val_cell.font = body_font
+            current_row += 1
+            
+        return current_row + 2
+
+    # Write tables
+    next_row = 4
+    next_row = write_pivot_table(ws2, pivot_neg, next_row, "🚨 Section 1: Blocker & Defect Themes vs User Cohort")
+    next_row = write_pivot_table(ws2, pivot_pos, next_row, "💚 Section 2: Customer Satisfaction & Positive Features vs User Cohort")
+    
     for col in ws2.columns:
         max_len = max(len(str(cell.value or '')) for cell in col)
         col_letter = openpyxl.utils.get_column_letter(col[0].column)
-        ws2.column_dimensions[col_letter].width = max(max_len + 5, 15)
+        ws2.column_dimensions[col_letter].width = max(max_len + 5, 18)
         
     wb.save(output)
     output.seek(0)
@@ -545,8 +577,9 @@ with st.container(border=True):
     with col_down_btn:
         # Formulate export DataFrame including both filtered defects and matching positive reviews
         if not full_df.empty:
+            pos_themes = ["Accurate Recommendations", "Great UI/UX", "Smart Curation", "Positive"]
             filtered_pos = full_df[
-                (full_df["Theme"] == "Positive") &
+                (full_df["Theme"].isin(pos_themes)) &
                 (full_df["Source"].isin(source_filter))
             ]
             if search_query and not filtered_pos.empty:
