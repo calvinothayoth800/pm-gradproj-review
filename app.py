@@ -500,44 +500,10 @@ with col_kpi3:
 with col_kpi4:
     st.metric("Top Positive Feature", top_positive_theme, help=f"Total positive reviews: {total_pos} (kept in Excel for further exploration)")
 
-st.markdown("<br>", unsafe_allow_html=True)
- 
-# Collapsible Filtering Matrix (Expander - Clean Layout)
-with st.expander("Filter Matrix", expanded=False):
-    if not full_df.empty:
-        source_opts = list(full_df["Source"].unique())
-        theme_opts = list(full_df["Theme"].unique())
-        user_opts = list(full_df["User Type"].unique())
-        sentiment_opts = list(full_df["Sentiment"].unique())
-    else:
-        source_opts, theme_opts, user_opts, sentiment_opts = [], [], [], []
-        
-    f_col1, f_col2, f_col3, f_col4 = st.columns(4)
-    with f_col1:
-        source_filter = st.multiselect("Source", options=source_opts, default=source_opts)
-    with f_col2:
-        theme_filter = st.multiselect("Theme/Blocker", options=theme_opts, default=theme_opts)
-    with f_col3:
-        user_filter = st.multiselect("User Cohort", options=user_opts, default=user_opts)
-    with f_col4:
-        sentiment_filter = st.multiselect("Sentiment Severity", options=sentiment_opts, default=sentiment_opts)
-        
-    search_query = st.text_input("Search Text Content", "")
- 
-# Apply Filters on the full dataset (both negative defects and positive features)
-if not full_df.empty:
-    filtered_full_df = full_df[
-        (full_df["Source"].isin(source_filter)) &
-        (full_df["Theme"].isin(theme_filter)) &
-        (full_df["User Type"].isin(user_filter)) &
-        (full_df["Sentiment"].isin(sentiment_filter))
-    ]
-    if search_query:
-        filtered_full_df = filtered_full_df[filtered_full_df["Text"].str.contains(search_query, case=False, na=False)]
-else:
-    filtered_full_df = pd.DataFrame()
+# Bind datasets directly (filtering is handled in the exported Excel spreadsheet)
+filtered_full_df = full_df
 
-# Separate the filtered dataset into negative defects and positive features for charts
+# Separate the dataset into negative defects and positive features for charts
 pos_themes = ["Accurate Recommendations", "Great UI/UX", "Smart Curation", "Positive"]
 filtered_df = filtered_full_df[~filtered_full_df["Theme"].isin(pos_themes)] if not filtered_full_df.empty else pd.DataFrame()
 filtered_pos_df = filtered_full_df[filtered_full_df["Theme"].isin(pos_themes)] if not filtered_full_df.empty else pd.DataFrame()
