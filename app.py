@@ -536,6 +536,19 @@ if not df.empty:
         filtered_df = filtered_df[filtered_df["Text"].str.contains(search_query, case=False, na=False)]
 else:
     filtered_df = pd.DataFrame()
+
+# Filter positive reviews for visual charts
+if not full_df.empty:
+    pos_themes = ["Accurate Recommendations", "Great UI/UX", "Smart Curation", "Positive"]
+    pos_df = full_df[full_df["Theme"].isin(pos_themes)]
+    if not pos_df.empty:
+        filtered_pos_df = pos_df[pos_df["Source"].isin(source_filter)]
+        if search_query:
+            filtered_pos_df = filtered_pos_df[filtered_pos_df["Text"].str.contains(search_query, case=False, na=False)]
+    else:
+        filtered_pos_df = pd.DataFrame()
+else:
+    filtered_pos_df = pd.DataFrame()
  
 # Visualizations
 st.subheader("📊 Defect Diagnostics & User Cohorts")
@@ -568,6 +581,32 @@ with col_chart3:
     else:
         st.info("No data matches active filters.")
  
+st.markdown("<hr style='border: 0; border-top: 1px solid #27272a; margin: 25px 0;'>", unsafe_allow_html=True)
+
+# Positive Diagnostics Section
+st.subheader("💚 Customer Curation & Positive Feature Diagnostics")
+col_pos_chart1, col_pos_chart2 = st.columns(2)
+
+with col_pos_chart1:
+    st.markdown("**Positive Features Distribution**")
+    if not filtered_pos_df.empty:
+        pos_theme_counts = filtered_pos_df["Theme"].value_counts().reset_index()
+        pos_theme_counts.columns = ["Theme", "Count"]
+        st.bar_chart(pos_theme_counts.set_index("Theme"))
+    else:
+        st.info("No positive records match the active filters.")
+
+with col_pos_chart2:
+    st.markdown("**Satisfied User Cohorts**")
+    if not filtered_pos_df.empty:
+        pos_cohort_counts = filtered_pos_df["User Type"].value_counts().reset_index()
+        pos_cohort_counts.columns = ["Cohort", "Count"]
+        st.bar_chart(pos_cohort_counts.set_index("Cohort"))
+    else:
+        st.info("No positive records match the active filters.")
+
+st.markdown("<br>", unsafe_allow_html=True)
+
 # Export & Reporting Container
 st.subheader("📥 Export & Reporting")
 with st.container(border=True):
