@@ -235,6 +235,11 @@ def rule_based_fallback(text):
         sentiment = "Disappointed"
         user_type = "Audiophile"
         root_cause = "Algorithmic blending mixes unrelated genres"
+    elif "ad" in text_lower or "ads" in text_lower or "commercial" in text_lower:
+        theme = "UI/UX Clutter"
+        sentiment = "Negative"
+        user_type = "Casual Listener"
+        root_cause = "Excessive or unskippable advertisements"
     elif "ui" in text_lower or "ux" in text_lower or "clutter" in text_lower:
         theme = "UI/UX Clutter"
         sentiment = "Negative"
@@ -296,7 +301,7 @@ If the review is Negative, classify it exactly as follows:
 - theme: "Echo Chamber" | "Smart Shuffle Failure" | "Niche Genre Blending" | "UI/UX Clutter"
 - sentiment: "Negative" | "Highly Frustrated" | "Disappointed"
 - user_type: "Power User" | "Casual Listener" | "Audiophile" | "Playlist Curator"
-- root_cause: A concise 5-to-7 word description of the exact behavioral blocker or defect they are experiencing.
+- root_cause: A concise 5-to-7 word description of the exact, specific mechanical defect they are experiencing. Avoid generic descriptions like "Stale recommendations" or "Smart shuffle failure". Be highly specific to the user's scenario. For example, if a user cleared their liked list but the taste profile didn't update, write "Taste profile persists library reset". If they complain about ads interrupting music, write "Excessive ads interrupt song listening".
 
 Output ONLY a raw, valid JSON object with keys: "theme", "sentiment", "user_type", "root_cause".
 Do NOT include markdown formatting, backticks, or conversational text.

@@ -415,6 +415,10 @@ with st.container(border=True):
     with col_desc:
         st.markdown("<h3 style='margin:0; font-size:1.1rem; font-weight:600; color:#fafafa;'>⚡ Review Classification Manager</h3>", unsafe_allow_html=True)
         st.markdown(f"<p style='margin:4px 0 0 0; font-size:0.85rem; color:#a1a1aa;'>The pipeline has identified <b>{unprocessed_count}</b> unprocessed reviews in the database queue. Already processed reviews are skipped automatically.</p>", unsafe_allow_html=True)
+        
+        # Display active model status
+        api_status = "<span style='color: #10b981; font-weight: 500; font-size: 0.78rem;'>● Groq AI Model Active (Llama 3.3)</span>" if GROQ_API_KEY else "<span style='color: #f59e0b; font-weight: 500; font-size: 0.78rem;'>● Local Heuristics Fallback Active (Groq API Key not configured)</span>"
+        st.markdown(f"<div style='margin-top: 6px;'>{api_status}</div>", unsafe_allow_html=True)
     with col_btn:
         st.write("<div style='height: 8px;'></div>", unsafe_allow_html=True)
         if st.button("Start Classification Run", use_container_width=True):
