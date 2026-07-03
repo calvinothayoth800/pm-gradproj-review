@@ -65,6 +65,26 @@ def test_rule_based_fallback():
     assert res_clutter["theme"] == "UI/UX Clutter"
     assert res_clutter["user_type"] == "Casual Listener"
 
+    # Mixed-sentiment case (should be classified as Negative since it contains complaints/criticisms)
+    mixed_text = (
+        "Update: below criticism still holds if true. I've taken family premium and that's much more affordable. "
+        "other than that, a great music app with amazing recommendations. 2 stars just because they made shuffling "
+        "and changing the songs premium features. The initial criticism: Ads are not enough? Too much corporat-ism! "
+        "Besides that, with premium, it's a great music app with amazing recommendations algorithm and good UI and features."
+    )
+    res_mixed = rule_based_fallback(mixed_text)
+    assert res_mixed["theme"] == "Ad & Subscription Barriers"
+    assert res_mixed["sentiment"] == "Negative"
+
+    # Forced shuffle reviews (should be classified as Ad & Subscription Barriers)
+    f_shuffle_1 = "I hope that they can remove the optional cues to normal, because right now they're premium and it's kind of annoying, because I don't like my playlist in shuffle I want them an order. So I hope they can change it. but the app is nice"
+    f_shuffle_2 = "Not enough control You literally have no choice in what you listen too unless you pay, it forces your list too shuffle with random songs and you can’t loop it. This app just wants money."
+    f_shuffle_3 = "Is it because of the new update that I can no longer switch it off shuffle mode or skip songs? If so, I have to say it's ridiculous. Why do you have to limit the free account so much?"
+    
+    assert rule_based_fallback(f_shuffle_1)["theme"] == "Ad & Subscription Barriers"
+    assert rule_based_fallback(f_shuffle_2)["theme"] == "Ad & Subscription Barriers"
+    assert rule_based_fallback(f_shuffle_3)["theme"] == "Ad & Subscription Barriers"
+
 def test_analyze_review_with_groq_fallback_when_no_key(monkeypatch):
     """Verify analyze_review_with_groq falls back to rule-based classification if no API key exists."""
     # Temporarily remove GROQ_API_KEY from environment

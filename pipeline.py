@@ -209,11 +209,59 @@ def rule_based_fallback(text):
     """Fallback local classification when Groq API is unavailable or in test mode."""
     text_lower = text.lower()
     
-    # Heuristic check for positive sentiment
-    pos_words = ["love", "great", "satisfied", "excellent", "good", "perfect", "awesome", "best"]
-    neg_words = ["crash", "worst", "terrible", "hate", "issue", "bug", "fail", "bad", "frustrat", "annoy", "loop", "clutter", "same songs"]
+    def has_word(pattern, text):
+        return bool(re.search(pattern, text))
+
+    # Positive keywords (with word boundaries)
+    pos_patterns = [
+        r"\blove(s|d|ly|ing)?\b",
+        r"\bgreat(er|est|ly)?\b",
+        r"\b(satisfied|satisfaction)\b",
+        r"\bexcellent(ly)?\b",
+        r"\bgood(ness)?\b",
+        r"\bperfect(ly)?\b",
+        r"\bawesome\b",
+        r"\bbest\b"
+    ]
     
-    is_positive = any(pw in text_lower for pw in pos_words) and not any(nw in text_lower for nw in neg_words)
+    # Negative keywords (with word boundaries)
+    neg_patterns = [
+        r"\bcrash(es|ed|ing)?\b",
+        r"\bworst\b",
+        r"\bterrible(y)?\b",
+        r"\bhate(s|d|ful)?\b",
+        r"\bissue(s)?\b",
+        r"\bbug(s|gy)?\b",
+        r"\bfail(ed|ing|ure|ures)?\b",
+        r"\bbad(ly)?\b",
+        r"\bfrustrat(e|ed|es|ing|ion|ions)?\b",
+        r"\bannoy(s|ed|ing|ance|ances)?\b",
+        r"\bloop(s|ed|ing)?\b",
+        r"\bclutter(ed)?\b",
+        r"\bsame songs\b",
+        r"\bcriticis(m|ms|e|ed|ing)\b",
+        r"\bcriticiz(e|ed|es|ing)\b",
+        r"\bcomplain(t|ts|ed|ing|s)?\b",
+        r"\b[1-3]\s*star(s)?\b",
+        r"\bdisappointed\b",
+        r"\bdisappointing\b"
+    ]
+    
+    # Check if any positive or negative patterns match
+    has_pos = any(has_word(pat, text_lower) for pat in pos_patterns)
+    has_neg = any(has_word(pat, text_lower) for pat in neg_patterns)
+    
+    # Negation check for positive words (e.g. "not good", "no love", "not satisfied")
+    negation_patterns = [
+        r"\bnot\s+(good|great|perfect|satisfied|excellent|awesome|best|love)\b",
+        r"\bno\s+love\b",
+        r"\b(un|dis)satisfied\b",
+        r"\bimperfect\b"
+    ]
+    has_negation = any(has_word(pat, text_lower) for pat in negation_patterns)
+    
+    # Primarily positive if it has positive indicators, and NO negative indicators or negations
+    is_positive = has_pos and not (has_neg or has_negation)
     
     if is_positive:
         theme = "Positive"
@@ -237,32 +285,48 @@ def rule_based_fallback(text):
     user_type = "Power User"
     root_cause = "Trapped in repetitive listening loop"
     
-    if "smart shuffle" in text_lower or "shuffle" in text_lower:
-        theme = "Smart Shuffle Failure"
-        sentiment = "Highly Frustrated"
-        user_type = "Playlist Curator"
-        root_cause = "Smart shuffle repeats tracks repeatedly"
-    elif "blend" in text_lower or "genre" in text_lower:
-        theme = "Niche Genre Blending"
-        sentiment = "Disappointed"
-        user_type = "Audiophile"
-        root_cause = "Algorithmic blending mixes unrelated genres"
-    elif any(x in text_lower for x in ["ad", "ads", "commercial", "premium", "pay", "money", "subscription"]):
+    # Feature-specific negative checks
+    has_ad_barrier = any(has_word(pat, text_lower) for pat in [
+        r"\b(ad|ads|commercial|commercials|premium|pay|paying|payment|subscription|subscriptions|subscribe|money|free|paywall|paywalls|restrict|restricted|restriction|restrictions|limit|limits|limited)\b"
+    ])
+    has_shuffle = any(has_word(pat, text_lower) for pat in [r"\bshuffle\b", r"\bsmart\s+shuffle\b"])
+    has_blend = any(has_word(pat, text_lower) for pat in [r"\b(blend|blending|genre|genres)\b"])
+    has_performance = any(has_word(pat, text_lower) for pat in [
+        r"\b(crash|crashes|crashing|freeze|freezes|freezing|lag|lags|lagging|slow|slowness|hang|hangs|hanging|stop|stops|stopped|stopping)\b"
+    ])
+    has_offline = any(has_word(pat, text_lower) for pat in [
+        r"\b(offline|download|downloads|downloaded|downloading|wifi|connection|connectivity|internet)\b"
+    ])
+    has_ui_clutter = any(has_word(pat, text_lower) for pat in [
+        r"\b(ui|ux|clutter|cluttered|layout|interface|design)\b"
+    ])
+    
+    if has_ad_barrier:
         theme = "Ad & Subscription Barriers"
         sentiment = "Negative"
         user_type = "Casual Listener"
         root_cause = "Premium constraints or excessive advertisements"
-    elif any(x in text_lower for x in ["crash", "freeze", "lag", "slow", "hang", "force close", "stop"]):
+    elif has_shuffle:
+        theme = "Smart Shuffle Failure"
+        sentiment = "Highly Frustrated"
+        user_type = "Playlist Curator"
+        root_cause = "Smart shuffle repeats tracks repeatedly"
+    elif has_blend:
+        theme = "Niche Genre Blending"
+        sentiment = "Disappointed"
+        user_type = "Audiophile"
+        root_cause = "Algorithmic blending mixes unrelated genres"
+    elif has_performance:
         theme = "App Performance & Crashes"
         sentiment = "Highly Frustrated"
         user_type = "Power User"
         root_cause = "Application crashes or severe performance lag"
-    elif any(x in text_lower for x in ["offline", "download", "wifi", "connection", "no internet"]):
+    elif has_offline:
         theme = "Offline Sync & Connection"
         sentiment = "Disappointed"
         user_type = "Casual Listener"
         root_cause = "Offline playback or connectivity errors"
-    elif "ui" in text_lower or "ux" in text_lower or "clutter" in text_lower:
+    elif has_ui_clutter:
         theme = "UI/UX Clutter"
         sentiment = "Negative"
         user_type = "Casual Listener"
@@ -313,17 +377,43 @@ def analyze_review_with_groq(text):
 
 First, determine if the review is primarily Positive/Neutral (the user is satisfied, praises the app, or lists no issues/frustrations) or Negative (complaining about features, finding bugs, listing design flaws, or experiencing frustrations).
 
+CRITICAL: If a review contains mixed sentiment, such as praising the UI or recommendation algorithm but also expressing clear frustrations, criticisms, or complaints (e.g., complaining about advertisements, premium/subscription locks, song change restrictions, forced shuffling, crashes, or offline issues), you MUST classify the review as Negative.
+
 If the review is Positive/Neutral, classify it exactly as follows:
-- theme: "Accurate Recommendations" | "Great UI/UX" | "Smart Curation" | "Positive"
+- theme: Choose one of:
+  * "Accurate Recommendations": Praise for recommendations, discovery, or algorithms.
+  * "Great UI/UX": Praise for design, look and feel, or layout.
+  * "Smart Curation": Praise for playlist curation, mixes, or radios.
+  * "Positive": General praise with no specific theme.
 - sentiment: "Positive"
 - user_type: "Power User" | "Casual Listener" | "Audiophile" | "Playlist Curator" (choose the most matching cohort based on their usage profile described in the review)
 - root_cause: A concise 5-to-7 word description summarizing why they are satisfied.
 
 If the review is Negative, classify it exactly as follows:
-- theme: "Echo Chamber" | "Smart Shuffle Failure" | "Niche Genre Blending" | "UI/UX Clutter" | "Ad & Subscription Barriers" | "App Performance & Crashes" | "Offline Sync & Connection"
+- theme: Choose the most appropriate theme based on these semantic definitions:
+  * "Ad & Subscription Barriers": Complaints about ads, paywalls/premium restrictions (including free-tier restrictions like forced shuffling of playlists/albums, limits on skips, preview-only mode, or locked queue control).
+  * "Smart Shuffle Failure": Specific issues where the smart shuffle algorithm repeats the same tracks, loops, fails technically, or has toggling issues.
+  * "Echo Chamber": The recommendation algorithm (Daily Mixes, Discover Weekly, DJ, etc.) is stale, repetitive, or traps the user in a loop of the same songs.
+  * "Niche Genre Blending": Disliked mixing of unrelated or jarring genres in blend playlists.
+  * "UI/UX Clutter": UI layout is cluttered, confusing, unintuitive, or hard to navigate.
+  * "App Performance & Crashes": App freezes, crashes, lags, or is slow.
+  * "Offline Sync & Connection": Issues with offline mode, downloading, or network connectivity.
 - sentiment: "Negative" | "Highly Frustrated" | "Disappointed"
 - user_type: "Power User" | "Casual Listener" | "Audiophile" | "Playlist Curator"
 - root_cause: A concise 5-to-7 word description of the exact, specific mechanical defect they are experiencing. Avoid generic descriptions like "Stale recommendations" or "Smart shuffle failure". Be highly specific to the user's scenario. For example, if a user cleared their liked list but the taste profile didn't update, write "Taste profile persists library reset". If they complain about ads interrupting music, write "Excessive ads interrupt song listening".
+
+Few-shot examples for reference:
+Example 1 (Forced Shuffle on Free tier):
+Review: "I hate that Spotify free forces shuffle and I can't play the songs in order unless I pay."
+Output: {{"theme": "Ad & Subscription Barriers", "sentiment": "Negative", "user_type": "Casual Listener", "root_cause": "Forced shuffle on free tier"}}
+
+Example 2 (Smart Shuffle repetition bug):
+Review: "The smart shuffle is broken, it keeps playing the same 3 songs over and over again on my playlist."
+Output: {{"theme": "Smart Shuffle Failure", "sentiment": "Highly Frustrated", "user_type": "Playlist Curator", "root_cause": "Smart shuffle repeats tracks repeatedly"}}
+
+Example 3 (Mixed sentiment with paywall constraint):
+Review: "It's a great app with amazing recommendations, but 2 stars because shuffle is a premium feature and I'm forced to shuffle playlists."
+Output: {{"theme": "Ad & Subscription Barriers", "sentiment": "Negative", "user_type": "Casual Listener", "root_cause": "Playlist shuffle locked behind premium"}}
 
 Output ONLY a raw, valid JSON object with keys: "theme", "sentiment", "user_type", "root_cause".
 Do NOT include markdown formatting, backticks, or conversational text.
