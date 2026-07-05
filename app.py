@@ -153,7 +153,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-from pipeline import analyze_review_with_groq
+from pipeline import analyze_review_with_groq, scrape_app_store, scrape_google_play, scrape_reddit
 
 @st.cache_data(ttl=30)
 def fetch_analyzed_data():
@@ -284,6 +284,48 @@ def run_ai_classification_in_ui():
             
     st.success(f"✅ Classification complete. Saved {processed_count} records.")
     st.cache_data.clear()
+
+def run_scraping_in_ui():
+    """Run scraper loop in Streamlit and save new matching reviews to Supabase."""
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        st.error("Supabase credentials not configured in environment variables.")
+        return
+        
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    
+    st.info("🔄 Connecting to App Store, Reddit, and Google Play Store...")
+    status_text = st.empty()
+    
+    # Ingestion List
+    all_scraped = []
+    
+    # 1. App Store
+    status_text.markdown("🌐 **Apple App Store**: Fetching recent reviews for Spotify...")
+    app_store_reviews = scrape_app_store(app_id="324684580", source="App Store")
+    all_scraped.extend(app_store_reviews)
+    
+    # 2. Reddit
+    status_text.markdown("🌐 **Reddit**: Fetching search results on r/spotify...")
+    reddit_reviews = scrape_reddit(subreddit="spotify", source="Reddit")
+    all_scraped.extend(reddit_reviews)
+    
+    # 3. Google Play
+    status_text.markdown("🌐 **Google Play Store**: Fetching reviews for com.spotify.music...")
+    google_play_reviews = scrape_google_play(app_id="com.spotify.music", source="Google Play")
+    all_scraped.extend(google_play_reviews)
+    
+    if not all_scraped:
+        status_text.markdown("⚠️ *No reviews matching target keywords were found in current store updates.*")
+        return
+        
+    status_text.markdown(f"📥 *Syncing {len(all_scraped)} matching reviews to Supabase...*")
+    
+    try:
+        supabase.table("raw_feedback").upsert(all_scraped, on_conflict="review_id").execute()
+        st.success(f"✅ Ingestion successful. Scraped and synchronized {len(all_scraped)} reviews (duplicates automatically merged by Postgres PK).")
+        st.cache_data.clear()
+    except Exception as e:
+        st.error(f"Failed to upsert scraped reviews: {str(e)}")
 
 def generate_excel_bytes(df):
     output = io.BytesIO()
@@ -429,9 +471,11 @@ else:
     total_pos = 0
     df = pd.DataFrame()
 
-# Initialize session state for classification run
+# Initialize session state for classification and scraping runs
 if "run_classification" not in st.session_state:
     st.session_state.run_classification = False
+if "run_scraping" not in st.session_state:
+    st.session_state.run_scraping = False
 
 # Database Classification Controls (Clean Open Layout)
 try:
@@ -440,8 +484,8 @@ except TypeError:
     col_desc, col_btn = st.columns([3, 1])
 
 with col_desc:
-    st.markdown("<h3 style='margin:0; font-size:1.15rem; font-weight:600; color:#fafafa;'>⚡ Review Classification Manager</h3>", unsafe_allow_html=True)
-    st.markdown(f"<p style='margin:4px 0 0 0; font-size:0.85rem; color:#a1a1aa;'>The pipeline has identified <b>{unprocessed_count}</b> unprocessed reviews in the database queue. Already processed reviews are skipped automatically.</p>", unsafe_allow_html=True)
+    st.markdown("<h3 style='margin:0; font-size:1.15rem; font-weight:600; color:#fafafa;'>⚡ Review Ingestion & Classification Manager</h3>", unsafe_allow_html=True)
+    st.markdown(f"<p style='margin:4px 0 0 0; font-size:0.85rem; color:#a1a1aa;'>The pipeline has identified <b>{unprocessed_count}</b> unprocessed reviews in the database queue. Use the controls to fetch new feedback or analyze the queue.</p>", unsafe_allow_html=True)
     
     # Display active model status
     api_status = "<span style='color: #10b981; font-weight: 500; font-size: 0.78rem;'>● Groq AI Model Active (Llama 3.3)</span>" if GROQ_API_KEY else "<span style='color: #f59e0b; font-weight: 500; font-size: 0.78rem;'>● Local Heuristics Fallback Active (Groq API Key not configured)</span>"
@@ -453,11 +497,19 @@ with col_btn:
             st.warning("All records already classified.")
         else:
             st.session_state.run_classification = True
+            
+    if st.button("⚡ Fetch Latest Reviews", use_container_width=True):
+        st.session_state.run_scraping = True
 
-# Run classification outside of columns at full width
+# Run classification or scraping outside of columns at full width
 if st.session_state.run_classification:
     run_ai_classification_in_ui()
     st.session_state.run_classification = False
+    st.rerun()
+
+if st.session_state.run_scraping:
+    run_scraping_in_ui()
+    st.session_state.run_scraping = False
     st.rerun()
 
 st.markdown("<hr style='border: 0; border-top: 1px solid #27272a; margin: 15px 0 25px 0;'>", unsafe_allow_html=True)
