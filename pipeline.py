@@ -27,7 +27,12 @@ RPM_DELAY = 3.0  # 3 seconds delay = 20 Requests Per Minute
 MAX_BATCH_SIZE = int(os.getenv("MAX_BATCH_SIZE", "900"))  # Cap processing at 900 records in a single run
 
 # Ingestion filter keywords
-KEYWORDS = ["discovery", "recommendation", "smart shuffle", "shuffle", "algorithm", "same songs", "echo chamber", "loop"]
+KEYWORDS = [
+    "discovery", "recommendation", "smart shuffle", "shuffle", "algorithm", 
+    "same songs", "echo chamber", "loop", "repeat", "ad", "ads", "slow", 
+    "sluggish", "slop", "ai dj", "dj", "widget", "ui", "ux", "clutter", 
+    "bugs", "glitch", "premium"
+]
 
 # Allowed enums for validation
 THEME_ENUM = [

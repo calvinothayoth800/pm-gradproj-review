@@ -153,7 +153,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-from pipeline import analyze_review_with_groq, scrape_app_store, scrape_google_play, scrape_reddit
+from pipeline import analyze_review_with_groq, scrape_app_store, scrape_google_play, scrape_reddit, KEYWORDS
 
 @st.cache_data(ttl=30)
 def fetch_analyzed_data():
@@ -351,6 +351,7 @@ def run_scraping_in_ui(demo_mode=False):
     try:
         supabase.table("raw_feedback").upsert(all_scraped, on_conflict="review_id").execute()
         st.success(f"✅ Ingestion successful. Scraped and synchronized {len(all_scraped)} reviews (duplicates automatically merged by Postgres PK).")
+        st.session_state.scraped_reviews_to_show = all_scraped
         st.cache_data.clear()
     except Exception as e:
         st.error(f"Failed to upsert scraped reviews: {str(e)}")
@@ -504,6 +505,36 @@ if "run_classification" not in st.session_state:
     st.session_state.run_classification = False
 if "run_scraping" not in st.session_state:
     st.session_state.run_scraping = False
+if "scraped_reviews_to_show" not in st.session_state:
+    st.session_state.scraped_reviews_to_show = []
+
+# Scraped Feed Dialog Viewer Trigger
+if st.session_state.scraped_reviews_to_show:
+    try:
+        @st.dialog("📥 Newly Ingested Reviews & Match Tags")
+        def show_scraped_reviews_dialog(reviews_list):
+            st.write("Here is the newly ingested customer feedback and the keyword tags that matched your discovery filter rules:")
+            for r in reviews_list:
+                matched = [kw for kw in KEYWORDS if kw in r['text'].lower()]
+                st.markdown(f"**Source**: `{r['source']}` | **Match Tags**: {', '.join(f'`{k}`' for k in matched)}")
+                st.info(r['text'])
+            if st.button("Close Viewer", use_container_width=True):
+                st.session_state.scraped_reviews_to_show = []
+                st.rerun()
+        show_scraped_reviews_dialog(st.session_state.scraped_reviews_to_show)
+    except AttributeError:
+        # Fallback container for older Streamlit versions < 1.34.0
+        st.markdown("<div style='background-color:#110f18; padding:15px; border-radius:8px; border:1px solid #d4af37; margin-bottom:20px;'>", unsafe_allow_html=True)
+        st.markdown("<h4 style='color:#d4af37; margin-top:0;'>📥 Newly Ingested Reviews & Match Tags</h4>", unsafe_allow_html=True)
+        st.write("Here is the newly ingested customer feedback and the keyword tags that matched your discovery filter rules:")
+        for r in st.session_state.scraped_reviews_to_show:
+            matched = [kw for kw in KEYWORDS if kw in r['text'].lower()]
+            st.markdown(f"**Source**: `{r['source']}` | **Match Tags**: {', '.join(f'`{k}`' for k in matched)}")
+            st.info(r['text'])
+        if st.button("Dismiss Ingest View", use_container_width=True):
+            st.session_state.scraped_reviews_to_show = []
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # Database Classification Controls (Clean Open Layout)
 try:
