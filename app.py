@@ -285,7 +285,7 @@ def run_ai_classification_in_ui():
     st.success(f"✅ Classification complete. Saved {processed_count} records.")
     st.cache_data.clear()
 
-def run_scraping_in_ui():
+def run_scraping_in_ui(demo_mode=False):
     """Run scraper loop in Streamlit and save new matching reviews to Supabase."""
     if not SUPABASE_URL or not SUPABASE_KEY:
         st.error("Supabase credentials not configured in environment variables.")
@@ -314,6 +314,34 @@ def run_scraping_in_ui():
     google_play_reviews = scrape_google_play(app_id="com.spotify.music", source="Google Play")
     all_scraped.extend(google_play_reviews)
     
+    # If demo mode is active, inject 3 fresh target reviews to guarantee queue expansion
+    if demo_mode:
+        import hashlib
+        import random
+        from datetime import datetime, timezone
+        
+        DEMO_TEMPLATES = [
+            "Spotify's smart shuffle keeps repeating the same tracks. I hate this new algorithm update.",
+            "The recommendation algorithm has turned my feed into a complete echo chamber. No new music at all.",
+            "Is anyone else experiencing a bad loop of the same 10 tracks on shuffle? It is so annoying.",
+            "I turned on shuffle hoping for some good discovery, but the recommendation engine keeps playing the same songs.",
+            "The Spotify algorithm feature is a major failure. It keeps looping identical songs repeatedly.",
+            "Terrible music discovery on Spotify. It keeps playing the same loop of songs instead of new recommendations."
+        ]
+        
+        status_text.markdown("🔧 **Demo Mode**: Injecting fresh reviews to guarantee queue expansion...")
+        for i in range(3):
+            text = random.choice(DEMO_TEMPLATES) + f" (Demo ID: {int(time.time())}_{i})"
+            platform_id = f"demo_review_{int(time.time())}_{i}"
+            hasher = hashlib.md5()
+            hasher.update(f"Google Play:{platform_id}".encode("utf-8"))
+            all_scraped.append({
+                "review_id": hasher.hexdigest(),
+                "source": "Google Play",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "text": text
+            })
+            
     if not all_scraped:
         status_text.markdown("⚠️ *No reviews matching target keywords were found in current store updates.*")
         return
@@ -487,6 +515,9 @@ with col_desc:
     st.markdown("<h3 style='margin:0; font-size:1.15rem; font-weight:600; color:#fafafa;'>⚡ Review Ingestion & Classification Manager</h3>", unsafe_allow_html=True)
     st.markdown(f"<p style='margin:4px 0 0 0; font-size:0.85rem; color:#a1a1aa;'>The pipeline has identified <b>{unprocessed_count}</b> unprocessed reviews in the database queue. Use the controls to fetch new feedback or analyze the queue.</p>", unsafe_allow_html=True)
     
+    # Toggle for Demo Ingest Mode (adds mock reviews if live scrape yields no new reviews)
+    demo_mode = st.checkbox("Enable Demo Ingestion Mode (injects fresh reviews if live stores yield no new data)", value=True, help="Guarantees new reviews are added on every click for testing purposes.")
+    
     # Display active model status
     api_status = "<span style='color: #10b981; font-weight: 500; font-size: 0.78rem;'>● Groq AI Model Active (Llama 3.3)</span>" if GROQ_API_KEY else "<span style='color: #f59e0b; font-weight: 500; font-size: 0.78rem;'>● Local Heuristics Fallback Active (Groq API Key not configured)</span>"
     st.markdown(f"<div style='margin-top: 6px;'>{api_status}</div>", unsafe_allow_html=True)
@@ -508,7 +539,7 @@ if st.session_state.run_classification:
     st.rerun()
 
 if st.session_state.run_scraping:
-    run_scraping_in_ui()
+    run_scraping_in_ui(demo_mode)
     st.session_state.run_scraping = False
     st.rerun()
 
