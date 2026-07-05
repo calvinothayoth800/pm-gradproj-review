@@ -525,40 +525,30 @@ if st.session_state.show_settings:
     try:
         @st.dialog("⚙️ Ingestion Filter Settings")
         def show_settings_dialog():
-            st.write("Manage the keyword tags used by the scrapers to filter Spotify reviews:")
+            st.write("Edit keywords to filter Spotify reviews (click 'x' to remove a tag):")
             
-            # Display active tags
-            st.write("**Active Keyword Tags:**")
-            cols = st.columns(4)
-            for idx, kw in enumerate(st.session_state.active_keywords):
-                col = cols[idx % 4]
-                col.markdown(f"<span style='background-color:#1e1c24; color:#fafafa; border:1px solid #d4af37; padding:2px 8px; border-radius:12px; font-size:0.75rem; display:inline-block; margin-bottom:4px;'>{kw}</span>", unsafe_allow_html=True)
+            # Use st.multiselect to display and allow direct tag deletion in one compact element!
+            updated_tags = st.multiselect(
+                "Active Keyword Filter Tags:",
+                options=sorted(list(set(st.session_state.active_keywords))),
+                default=st.session_state.active_keywords,
+                label_visibility="collapsed"
+            )
             
-            st.markdown("<hr style='border:0; border-top:1px solid #27272a; margin:15px 0;'>", unsafe_allow_html=True)
+            # Save selection to state
+            st.session_state.active_keywords = updated_tags
             
-            # Add Tag Input
-            col_add, col_add_btn = st.columns([3, 1])
+            # Add New Tag row
+            col_add, col_btn = st.columns([3, 1])
             with col_add:
-                new_tag = st.text_input("Add New Tag", placeholder="e.g. lyrics, search", key="add_tag_input")
-            with col_add_btn:
-                st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
-                if st.button("Add", use_container_width=True):
+                new_tag = st.text_input("Add Tag", placeholder="e.g. lyrics, search", label_visibility="collapsed", key="add_tag_modal")
+            with col_btn:
+                if st.button("➕ Add", use_container_width=True):
                     if new_tag and new_tag.lower().strip() not in st.session_state.active_keywords:
                         st.session_state.active_keywords.append(new_tag.lower().strip())
                         st.rerun()
                         
-            # Remove Tag Selection
-            col_rem, col_rem_btn = st.columns([3, 1])
-            with col_rem:
-                tag_to_remove = st.selectbox("Select Tag to Remove", options=[""] + sorted(st.session_state.active_keywords), key="remove_tag_select")
-            with col_rem_btn:
-                st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
-                if st.button("Remove", use_container_width=True):
-                    if tag_to_remove:
-                        st.session_state.active_keywords.remove(tag_to_remove)
-                        st.rerun()
-                        
-            st.markdown("<hr style='border:0; border-top:1px solid #27272a; margin:15px 0;'>", unsafe_allow_html=True)
+            st.markdown("<hr style='border:0; border-top:1px solid #27272a; margin:12px 0;'>", unsafe_allow_html=True)
             if st.button("Save & Apply Settings", use_container_width=True):
                 pipeline.KEYWORDS = st.session_state.active_keywords
                 st.session_state.show_settings = False
@@ -566,32 +556,26 @@ if st.session_state.show_settings:
                 
         show_settings_dialog()
     except AttributeError:
-        # Fallback container for older Streamlit versions < 1.34.0
+        # Fallback container for older Streamlit versions < 1.34.0 (renders inline modal overlay at top of page)
         st.markdown("<div style='background-color:#110f18; padding:15px; border-radius:8px; border:1px solid #d4af37; margin-bottom:20px;'>", unsafe_allow_html=True)
         st.markdown("<h4 style='color:#d4af37; margin-top:0;'>⚙️ Ingestion Filter Settings</h4>", unsafe_allow_html=True)
-        st.write("Manage the keyword tags used by the scrapers to filter Spotify reviews:")
+        st.write("Edit keywords to filter Spotify reviews:")
         
-        # Display tags
-        st.write(", ".join(f"`{k}`" for k in st.session_state.active_keywords))
+        updated_tags = st.multiselect(
+            "Active Keyword Filter Tags (Fallback):",
+            options=sorted(list(set(st.session_state.active_keywords))),
+            default=st.session_state.active_keywords,
+            key="fb_ms"
+        )
+        st.session_state.active_keywords = updated_tags
         
-        col_add, col_add_btn = st.columns([3, 1])
+        col_add, col_btn = st.columns([3, 1])
         with col_add:
-            new_tag = st.text_input("Add Tag", placeholder="e.g. lyrics", key="add_tag_input_fb")
-        with col_add_btn:
-            st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
-            if st.button("Add", key="add_btn_fb", use_container_width=True):
+            new_tag = st.text_input("Add Tag", placeholder="e.g. lyrics", label_visibility="collapsed", key="add_tag_fb")
+        with col_btn:
+            if st.button("➕ Add", key="add_btn_fb", use_container_width=True):
                 if new_tag and new_tag.lower().strip() not in st.session_state.active_keywords:
                     st.session_state.active_keywords.append(new_tag.lower().strip())
-                    st.rerun()
-                    
-        col_rem, col_rem_btn = st.columns([3, 1])
-        with col_rem:
-            tag_to_remove = st.selectbox("Remove Tag", options=[""] + sorted(st.session_state.active_keywords), key="remove_tag_select_fb")
-        with col_rem_btn:
-            st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
-            if st.button("Remove", key="remove_btn_fb", use_container_width=True):
-                if tag_to_remove:
-                    st.session_state.active_keywords.remove(tag_to_remove)
                     st.rerun()
                     
         if st.button("Save & Dismiss Settings", use_container_width=True):
