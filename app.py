@@ -587,24 +587,23 @@ if st.session_state.show_settings:
 # 2. Search status dialog viewer trigger
 if st.session_state.show_no_reviews_dialog:
     try:
-        @st.dialog("🔍 Search Status: No New Feedback")
+        @st.dialog("🔍 Ingestion Alert: No New Reviews")
         def show_no_reviews_dialog():
-            st.markdown("<p style='font-size:0.9rem;'>The multi-platform scrapers executed a search on <b>App Store</b>, <b>Google Play Store</b>, and <b>Reddit</b>.</p>", unsafe_allow_html=True)
-            st.markdown("<p style='font-size:0.9rem;'>No brand-new reviews were found matching your active filter keywords. Postgres deduplication merged all fetched items.</p>", unsafe_allow_html=True)
-            st.write("**Search Keywords Used:**")
+            st.markdown("<p style='font-size:0.95rem; font-weight: 500; color:#fafafa;'>All reviews for the below tags scraped, no new reviews. For testing purposes, please enable the Demo Ingestion toggle.</p>", unsafe_allow_html=True)
+            st.write("**Active Search Tags:**")
             st.write(", ".join(f"`{k}`" for k in st.session_state.active_keywords))
-            if st.button("Close Message", use_container_width=True):
+            if st.button("Dismiss Alert", use_container_width=True):
                 st.session_state.show_no_reviews_dialog = False
                 st.rerun()
         show_no_reviews_dialog()
     except AttributeError:
         # Fallback for Streamlit < 1.34.0
         st.markdown("<div style='background-color:#110f18; padding:15px; border-radius:8px; border:1px solid #d4af37; margin-bottom:20px;'>", unsafe_allow_html=True)
-        st.markdown("<h4 style='color:#d4af37; margin-top:0;'>🔍 Search Status: No New Feedback</h4>", unsafe_allow_html=True)
-        st.write("No brand-new reviews were found matching your active filter keywords. Postgres deduplication merged all fetched items.")
-        st.write("**Search Keywords Used:**")
+        st.markdown("<h4 style='color:#d4af37; margin-top:0;'>🔍 Ingestion Alert: No New Reviews</h4>", unsafe_allow_html=True)
+        st.write("All reviews for the below tags scraped, no new reviews. For testing purposes, please enable the Demo Ingestion toggle.")
+        st.write("**Active Search Tags:**")
         st.write(", ".join(f"`{k}`" for k in st.session_state.active_keywords))
-        if st.button("Dismiss Message", use_container_width=True):
+        if st.button("Dismiss Alert", use_container_width=True):
             st.session_state.show_no_reviews_dialog = False
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
