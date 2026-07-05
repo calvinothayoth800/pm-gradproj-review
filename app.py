@@ -356,6 +356,19 @@ def run_scraping_in_ui(demo_mode=False):
     except Exception as e:
         st.error(f"Failed to upsert scraped reviews: {str(e)}")
 
+def save_keywords_to_supabase():
+    """Save active keywords from session state to Supabase filter_keywords table."""
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return
+    try:
+        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        supabase.table("filter_keywords").delete().neq("keyword", "placeholder").execute()
+        records = [{"keyword": kw} for kw in st.session_state.active_keywords]
+        if records:
+            supabase.table("filter_keywords").insert(records).execute()
+    except Exception as e:
+        st.error(f"Failed to persist keyword settings to Supabase: {str(e)}")
+
 def generate_excel_bytes(df):
     output = io.BytesIO()
     wb = openpyxl.Workbook()
@@ -506,12 +519,7 @@ if "run_classification" not in st.session_state:
 if "run_scraping" not in st.session_state:
     st.session_state.run_scraping = False
 if "active_keywords" not in st.session_state:
-    st.session_state.active_keywords = [
-        "discovery", "recommendation", "smart shuffle", "shuffle", "algorithm", 
-        "same songs", "echo chamber", "loop", "repeat", "ad", "ads", "slow", 
-        "sluggish", "slop", "ai dj", "dj", "widget", "ui", "ux", "clutter", 
-        "bugs", "glitch", "premium"
-    ]
+    st.session_state.active_keywords = list(pipeline.KEYWORDS)
 if "show_settings" not in st.session_state:
     st.session_state.show_settings = False
 if "show_no_reviews_dialog" not in st.session_state:
@@ -550,6 +558,7 @@ if st.session_state.show_settings:
                         
             st.markdown("<hr style='border:0; border-top:1px solid #27272a; margin:12px 0;'>", unsafe_allow_html=True)
             if st.button("Save & Apply Settings", use_container_width=True):
+                save_keywords_to_supabase()
                 pipeline.KEYWORDS = st.session_state.active_keywords
                 st.session_state.show_settings = False
                 st.rerun()
@@ -579,6 +588,7 @@ if st.session_state.show_settings:
                     st.rerun()
                     
         if st.button("Save & Dismiss Settings", use_container_width=True):
+            save_keywords_to_supabase()
             pipeline.KEYWORDS = st.session_state.active_keywords
             st.session_state.show_settings = False
             st.rerun()

@@ -26,13 +26,34 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 RPM_DELAY = 3.0  # 3 seconds delay = 20 Requests Per Minute
 MAX_BATCH_SIZE = int(os.getenv("MAX_BATCH_SIZE", "900"))  # Cap processing at 900 records in a single run
 
-# Ingestion filter keywords
+# Ingestion filter keywords (Default fallback list)
 KEYWORDS = [
     "discovery", "recommendation", "smart shuffle", "shuffle", "algorithm", 
     "same songs", "echo chamber", "loop", "repeat", "ad", "ads", "slow", 
     "sluggish", "slop", "ai dj", "dj", "widget", "ui", "ux", "clutter", 
     "bugs", "glitch", "premium"
 ]
+
+def load_keywords_from_supabase():
+    """Fetch active filter keywords from Supabase filter_keywords table, updating KEYWORDS list in-place."""
+    global KEYWORDS
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return
+    try:
+        from supabase import create_client
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        response = supabase.table("filter_keywords").select("keyword").execute()
+        if response.data:
+            db_kws = [row["keyword"] for row in response.data]
+            if db_kws:
+                KEYWORDS.clear()
+                KEYWORDS.extend(db_kws)
+                print(f"Successfully loaded {len(KEYWORDS)} keywords from Supabase: {KEYWORDS}")
+    except Exception as e:
+        print(f"Could not load filter_keywords from Supabase (table may not exist yet, using static defaults): {str(e)}")
+
+# Attempt to load keywords from DB at module import time
+load_keywords_from_supabase()
 
 # Allowed enums for validation
 THEME_ENUM = [

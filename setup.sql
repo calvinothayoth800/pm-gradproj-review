@@ -37,3 +37,17 @@ CREATE INDEX IF NOT EXISTS idx_raw_feedback_timestamp ON public.raw_feedback(tim
 CREATE INDEX IF NOT EXISTS idx_raw_feedback_source ON public.raw_feedback(source);
 CREATE INDEX IF NOT EXISTS idx_ai_analytics_theme ON public.ai_analytics(theme);
 CREATE INDEX IF NOT EXISTS idx_ai_analytics_user_type ON public.ai_analytics(user_type);
+
+-- Table 4: Dynamic Search Keywords
+CREATE TABLE IF NOT EXISTS public.filter_keywords (
+    keyword TEXT PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Seed Initial Keywords
+INSERT INTO public.filter_keywords (keyword) VALUES
+('discovery'), ('recommendation'), ('smart shuffle'), ('shuffle'), ('algorithm'),
+('same songs'), ('echo chamber'), ('loop'), ('repeat'), ('ad'), ('ads'), ('slow'),
+('sluggish'), ('slop'), ('ai dj'), ('dj'), ('widget'), ('ui'), ('ux'), ('clutter'),
+('bugs'), ('glitch'), ('premium')
+ON CONFLICT (keyword) DO NOTHING;
