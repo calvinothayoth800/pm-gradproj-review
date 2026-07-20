@@ -292,7 +292,7 @@ with st.container(border=True):
             
             # 5. Classifier (Classification loop)
             status_text.markdown("🔄 **[5/6] Classifier** loading delta queue...")
-            unprocessed_records = db_client.fetch_unprocessed_feedback(limit=900)
+            unprocessed_records = db_client.fetch_unprocessed_feedback(limit=50)
             if not unprocessed_records:
                 status_text.markdown("✅ **Pipeline complete! No new reviews to classify.**")
                 progress_bar.progress(1.0)
