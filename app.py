@@ -372,7 +372,9 @@ with col_panel2:
                     # Progress bar scales from 0% to 90% during classification loop
                     pct = (float(idx+1) / total_chunks) * 0.9
                     progress_bar.progress(pct)
-                    status_text.markdown(f"⚡ **Classifying batch [{idx+1}/{total_chunks}]** ({len(chunk)} reviews)...")
+                    current_processed_count = min((idx + 1) * chunk_size, total_unprocessed)
+                    remaining_reviews = total_unprocessed - current_processed_count
+                    status_text.markdown(f"⚡ **Classifying reviews [{current_processed_count}/{total_unprocessed}]** ({remaining_reviews} remaining)...")
                     
                     batch_res = classifier.classify_reviews_batch(chunk, categories)
                     
