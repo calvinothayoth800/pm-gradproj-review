@@ -248,7 +248,7 @@ with col_m1:
 with col_m2:
     st.metric("🚀 Classified Reviews in DB", db_counts["classified"])
 with col_m3:
-    if st.button("🔄 Reset Category Taxonomy", use_container_width=True):
+    if st.button("🔄 Reset Feedback Categories", use_container_width=True):
         import os
         if os.path.exists("taxonomy_proposal.json"):
             try:
@@ -415,7 +415,16 @@ with col_panel2:
 prop = taxonomy_synthesizer.load_taxonomy_proposal()
 if prop:
     categories = [c["name"] for c in prop.get("categories", [])]
-    st.info(f"📋 **Active Taxonomy Categories Discovered**: {', '.join(categories)}")
+    st.markdown(f"<div style='font-size:0.9rem; font-weight:500; margin-bottom:5px;'>Active Feedback Categories Discovered ({len(categories)}):</div>", unsafe_allow_html=True)
+    st.info(f"{', '.join(categories)}")
+    
+    with st.expander("📋 View Category Definitions & Example Quotes"):
+        for c in prop.get("categories", []):
+            st.markdown(f"**{c['name']}**")
+            st.markdown(f"*{c['description']}*")
+            if "examples" in c and c["examples"]:
+                st.caption(f"Example Quote: \"{c['examples'][0]}\"")
+            st.markdown("<div style='border-top:1px solid #1f2937; margin:10px 0;'></div>", unsafe_allow_html=True)
 
 # ----------------------------------------------------
 # KPIs & Analytical Metrics
