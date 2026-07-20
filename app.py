@@ -304,9 +304,29 @@ with col_panel2:
     with st.container(border=True):
         st.write("### 🚀 Step 2: AI Classification & Auditing")
         st.write("Run the multi-agent classification pipeline on the unprocessed queue.")
-        classify_limit = st.slider("Reviews to classify", min_value=5, max_value=150, value=20, step=5)
         
-        if st.button("🚀 Start AI Classification", use_container_width=True):
+        max_unclassified = db_counts["unclassified"]
+        if max_unclassified == 0:
+            st.info("📥 No reviews available to classify. Run Step 1 Scraping first.")
+            classify_limit = 0
+        else:
+            default_val = min(20, max_unclassified)
+            classify_limit = st.slider(
+                "Reviews to classify", 
+                min_value=1, 
+                max_value=max_unclassified, 
+                value=default_val, 
+                step=1
+            )
+            # 3.0s throttle sleep + ~0.5s network latency per review
+            est_seconds = classify_limit * 3.5
+            if est_seconds >= 60:
+                time_str = f"{int(est_seconds // 60)}m {int(est_seconds % 60)}s"
+            else:
+                time_str = f"{int(est_seconds)}s"
+            st.caption(f"⏱️ **Estimated Time to Finish**: {time_str}")
+            
+        if classify_limit > 0 and st.button("🚀 Start AI Classification", use_container_width=True):
             progress_bar = st.progress(0.0)
             status_text = st.empty()
             
@@ -340,6 +360,7 @@ with col_panel2:
                 db_client.log_pipeline_run("Phase 5: Classifier", "STARTED")
                 classified = []
                 total_unprocessed = len(unprocessed_records)
+                current_batch = []
                 
                 for i, r in enumerate(unprocessed_records):
                     pct = 0.4 + (float(i+1) / total_unprocessed) * 0.4
@@ -349,20 +370,35 @@ with col_panel2:
                     res = classifier.classify_review(r["text"], categories)
                     res["review_id"] = r["review_id"]
                     res["text"] = r["text"]
-                    classified.append(res)
+                    current_batch.append(res)
+                    
+                    # Failsafe chunk saving: save every 10 reviews or at the end
+                    if len(current_batch) == 10 or i == total_unprocessed - 1:
+                        is_valid, msg = orchestrator.validate_classification(current_batch, categories)
+                        if is_valid:
+                            db_client.insert_ai_analytics(current_batch)
+                            classified.extend(current_batch)
+                        else:
+                            st.warning(f"Batch validation warning: {msg}. Saving valid records individually...")
+                            valid_singles = []
+                            for single in current_batch:
+                                is_single_valid, _ = orchestrator.validate_classification([single], categories)
+                                if is_single_valid:
+                                    valid_singles.append(single)
+                            if valid_singles:
+                                db_client.insert_ai_analytics(valid_singles)
+                                classified.extend(valid_singles)
+                        current_batch = []
                     
                     if classifier.GROQ_API_KEY and i < total_unprocessed - 1:
                         time.sleep(3.0)
                 
-                is_valid, msg = orchestrator.validate_classification(classified, categories)
-                if is_valid:
-                    db_client.insert_ai_analytics(classified)
-                    db_client.log_pipeline_run("Phase 5: Classifier", "COMPLETED", len(classified))
-                    
+                if classified:
                     # 6. Auditor
                     status_text.markdown("🔄 **[3/3] Running Auditor verification...**")
                     progress_bar.progress(0.9)
-                    db_client.log_pipeline_run("Phase 6: Auditor", "STARTED")
+                    db_client.log_pipeline_run("Phase 5: Classifier", "COMPLETED", len(classified))
+                    
                     rate, audited = auditor.run_auditor(classified, categories)
                     db_client.log_pipeline_run("Phase 6: Auditor", "COMPLETED", len(audited), {"agreement_rate": rate})
                     
@@ -372,8 +408,8 @@ with col_panel2:
                     time.sleep(2.0)
                     st.rerun()
                 else:
-                    db_client.log_pipeline_run("Phase 5: Classifier", "FAILED", metadata={"error": msg})
-                    st.error(f"Classification validation failed: {msg}")
+                    db_client.log_pipeline_run("Phase 5: Classifier", "FAILED", metadata={"error": "Zero reviews successfully validated."})
+                    st.error("Classification failed: No records successfully validated and saved.")
 
 # Display brief taxonomy summary if available
 prop = taxonomy_synthesizer.load_taxonomy_proposal()
