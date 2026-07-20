@@ -115,17 +115,20 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Helper to show classifications in a modal popup
-@st.dialog("📋 Classified Feedback Database Records")
-def show_classifications_popup(df):
-    st.write("Below are the classifications currently saved in the database:")
-    if df.empty:
-        st.info("No classified reviews found.")
+# Helper to show active taxonomy categories in a modal popup
+@st.dialog("📋 Active Feedback Categories & Definitions")
+def show_taxonomy_popup():
+    prop = taxonomy_synthesizer.load_taxonomy_proposal()
+    if not prop or not prop.get("categories"):
+        st.info("No active feedback categories discovered yet. Run classification first.")
     else:
-        st.dataframe(
-            df[["Review ID", "Source", "Timestamp", "Theme", "Sentiment", "User Type", "Root Cause", "Confidence Score"]],
-            use_container_width=True
-        )
+        st.write("Below are the active feedback categories and definitions currently used by the classifier:")
+        for c in prop.get("categories", []):
+            st.markdown(f"**{c['name']}**")
+            st.markdown(f"*{c['description']}*")
+            if "examples" in c and c["examples"]:
+                st.caption(f"Example Quote: \"{c['examples'][0]}\"")
+            st.markdown("<div style='border-top:1px solid #1f2937; margin:10px 0;'></div>", unsafe_allow_html=True)
 
 # Helper to load dataset
 @st.cache_data(ttl=5)
@@ -243,11 +246,6 @@ st.markdown("<p class='app-subtitle'>Multi-Agent Analytical Pipeline diagnosing 
 df = get_dashboard_data()
 db_counts = db_client.get_db_counts()
 
-# Check status of local vs supabase
-db_status_color = "#00b560" if not db_client._USE_LOCAL_SQLITE else "#ff9900"
-db_status_text = "Supabase Live Mode" if not db_client._USE_LOCAL_SQLITE else "SQLite Local Simulation Mode"
-st.markdown(f"<div style='font-size: 0.85rem; margin-bottom: 20px; font-weight: 500;'>Database Connection: <span style='color:{db_status_color};'>{db_status_text}</span></div>", unsafe_allow_html=True)
-
 # ----------------------------------------------------
 # Multi-Agent Phase Controller Panel
 # ----------------------------------------------------
@@ -273,8 +271,8 @@ with col_m3:
         time.sleep(1.0)
         st.rerun()
         
-    if st.button("📋 View Classifications", use_container_width=True):
-        show_classifications_popup(df)
+    if st.button("📋 View Feedback Categories", use_container_width=True):
+        show_taxonomy_popup()
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -442,21 +440,6 @@ with col_panel2:
                 else:
                     db_client.log_pipeline_run("AI Classification", "FAILED", metadata={"error": "Zero reviews successfully validated."})
                     st.error("Classification failed: No records successfully validated and saved.")
-
-# Display brief taxonomy summary if available
-prop = taxonomy_synthesizer.load_taxonomy_proposal()
-if prop:
-    categories = [c["name"] for c in prop.get("categories", [])]
-    st.markdown(f"<div style='font-size:0.9rem; font-weight:500; margin-bottom:5px;'>Active Feedback Categories Discovered ({len(categories)}):</div>", unsafe_allow_html=True)
-    st.info(f"{', '.join(categories)}")
-    
-    with st.expander("📋 View Category Definitions & Example Quotes"):
-        for c in prop.get("categories", []):
-            st.markdown(f"**{c['name']}**")
-            st.markdown(f"*{c['description']}*")
-            if "examples" in c and c["examples"]:
-                st.caption(f"Example Quote: \"{c['examples'][0]}\"")
-            st.markdown("<div style='border-top:1px solid #1f2937; margin:10px 0;'></div>", unsafe_allow_html=True)
 
 # ----------------------------------------------------
 # KPIs & Analytical Metrics
