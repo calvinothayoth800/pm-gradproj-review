@@ -137,6 +137,39 @@ def rule_based_fallback(text, categories):
         "confidence_score": 4 if theme else 3
     }
 
+def create_groq_completion(client, messages, response_format=None, max_tokens=200):
+    """Call Groq API with automatic model fallback for rate limits / token exhausts."""
+    last_error = None
+    models = [GROQ_MODEL] if GROQ_MODEL not in ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it", "mixtral-8x7b-32768"] else []
+    models += ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it", "mixtral-8x7b-32768"]
+    
+    # Deduplicate list
+    seen = set()
+    dedup_models = [m for m in models if not (m in seen or seen.add(m))]
+    
+    for model in dedup_models:
+        try:
+            kwargs = {
+                "messages": messages,
+                "model": model,
+                "temperature": 0.1,
+                "max_tokens": max_tokens
+            }
+            if response_format:
+                kwargs["response_format"] = response_format
+                
+            chat_completion = client.chat.completions.create(**kwargs)
+            return chat_completion.choices[0].message.content.strip()
+        except Exception as e:
+            err_str = str(e)
+            if "rate_limit_exceeded" in err_str or "429" in err_str:
+                print(f"[Classifier] Model {model} hit rate limit / token exhaust. Trying fallback model...")
+                last_error = e
+                continue
+            else:
+                raise e
+    raise last_error
+
 def clean_llm_json(response_text):
     """Safely extract valid JSON content within outermost braces."""
     try:
@@ -149,7 +182,7 @@ def clean_llm_json(response_text):
     except Exception:
         return None
 
-def classify_review(text, categories):
+def classify_review(text, categories, raise_on_error=False):
     """
     Classifier Agent:
     Uses Groq JSON mode to classify a raw review text against the active taxonomy.
@@ -157,8 +190,6 @@ def classify_review(text, categories):
     if not GROQ_API_KEY:
         return rule_based_fallback(text, categories)
         
-    from groq import Groq
-    
     # Prompt outlining taxonomy and enums
     allowed_sentiments = ["Positive", "Negative", "Disappointed", "Highly Frustrated"]
     allowed_cohorts = ["Power User", "Casual Shopper", "New Shopper", "Organic Shopper"]
@@ -194,16 +225,12 @@ Provide ONLY raw JSON. No conversational text or markdown blocks.
 """
     try:
         client = Groq(api_key=GROQ_API_KEY, timeout=6.0)
-        chat_completion = client.chat.completions.create(
+        response_text = create_groq_completion(
+            client=client,
             messages=[{"role": "user", "content": prompt}],
-            model=GROQ_MODEL,
-            temperature=0.1,
-            # Native JSON Mode enforcement
             response_format={"type": "json_object"},
             max_tokens=200
         )
-        
-        response_text = chat_completion.choices[0].message.content.strip()
         result = clean_llm_json(response_text)
         
         if result:
@@ -235,7 +262,10 @@ Provide ONLY raw JSON. No conversational text or markdown blocks.
             }
             
     except Exception as e:
-        print(f"[Classifier] Groq API call failed: {e}. Falling back to rules.")
+        print(f"[Classifier] Groq API call failed: {e}.")
+        if raise_on_error:
+            raise e
+        print("Falling back to rules.")
         
     return rule_based_fallback(text, categories)
 
@@ -281,15 +311,12 @@ Output a single JSON object containing a "classifications" array, where each ele
 Provide ONLY raw JSON. No conversational text or markdown blocks. Do not wrap in backticks or markdown JSON codeblocks.
 """
     try:
-        chat_completion = client.chat.completions.create(
+        response_text = create_groq_completion(
+            client=client,
             messages=[{"role": "user", "content": prompt}],
-            model=GROQ_MODEL,
-            temperature=0.1,
             response_format={"type": "json_object"},
             max_tokens=1500
         )
-        
-        response_text = chat_completion.choices[0].message.content.strip()
         data = clean_llm_json(response_text)
         
         if data and "classifications" in data:
@@ -333,7 +360,7 @@ Provide ONLY raw JSON. No conversational text or markdown blocks. Do not wrap in
         results = []
         for r in reviews_list:
             try:
-                res = classify_review(r["text"], categories)
+                res = classify_review(r["text"], categories, raise_on_error=True)
                 res["review_id"] = r["review_id"]
                 res["text"] = r["text"]
                 results.append(res)
