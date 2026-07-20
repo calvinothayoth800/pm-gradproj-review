@@ -11,6 +11,15 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
+if not SUPABASE_URL or not SUPABASE_KEY:
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets"):
+            SUPABASE_URL = st.secrets.get("SUPABASE_URL", SUPABASE_URL)
+            SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", SUPABASE_KEY)
+    except Exception:
+        pass
+
 _USE_LOCAL_SQLITE = False
 _sqlite_conn = None
 
@@ -391,3 +400,29 @@ def fetch_pipeline_runs(limit=10):
             _USE_LOCAL_SQLITE = True
             init_db()
             return fetch_pipeline_runs(limit)
+
+def get_db_counts():
+    """Get count of unclassified and classified reviews."""
+    global _USE_LOCAL_SQLITE
+    if _USE_LOCAL_SQLITE:
+        cursor = _sqlite_conn.cursor()
+        cursor.execute("SELECT COUNT(*) as cnt FROM raw_feedback r LEFT JOIN ai_analytics a ON r.review_id = a.review_id WHERE a.review_id IS NULL")
+        unclassified = cursor.fetchone()["cnt"]
+        cursor.execute("SELECT COUNT(*) as cnt FROM ai_analytics")
+        classified = cursor.fetchone()["cnt"]
+        return {"unclassified": unclassified, "classified": classified}
+    else:
+        client = get_supabase_client()
+        try:
+            res_unclass = client.table("unprocessed_feedback").select("review_id", count="exact").limit(1).execute()
+            unclassified = res_unclass.count if res_unclass.count is not None else 0
+            
+            res_class = client.table("ai_analytics").select("review_id", count="exact").limit(1).execute()
+            classified = res_class.count if res_class.count is not None else 0
+            
+            return {"unclassified": unclassified, "classified": classified}
+        except Exception as e:
+            print(f"[DB Client] Supabase error in get_db_counts: {e}. Falling back to SQLite.")
+            _USE_LOCAL_SQLITE = True
+            init_db()
+            return get_db_counts()

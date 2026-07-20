@@ -229,7 +229,7 @@ st.markdown("<p class='app-subtitle'>Multi-Agent Analytical Pipeline diagnosing 
 
 # Fetch latest database records
 df = get_dashboard_data()
-unprocessed_count = len(db_client.fetch_unprocessed_feedback())
+db_counts = db_client.get_db_counts()
 
 # Check status of local vs supabase
 db_status_color = "#00b560" if not db_client._USE_LOCAL_SQLITE else "#ff9900"
@@ -241,73 +241,110 @@ st.markdown(f"<div style='font-size: 0.85rem; margin-bottom: 20px; font-weight: 
 # ----------------------------------------------------
 st.subheader("⚡ Analytics Pipeline Control Console")
 
-with st.container(border=True):
-    st.write("### ⚡ Run End-to-End Analytics Pipeline")
-    st.write("Click below to ingest feedback, synthesize a category taxonomy, classify the reviews, and run validation audits in a single step.")
-    
-    if st.button("⚡ Run End-to-End Analytics Pipeline", use_container_width=True):
-        progress_bar = st.progress(0.0)
-        status_text = st.empty()
+# Database status metrics
+col_m1, col_m2, col_m3 = st.columns(3)
+with col_m1:
+    st.metric("📥 Unclassified Reviews in DB", db_counts["unclassified"])
+with col_m2:
+    st.metric("🚀 Classified Reviews in DB", db_counts["classified"])
+with col_m3:
+    if st.button("🔄 Reset Category Taxonomy", use_container_width=True):
+        import os
+        if os.path.exists("taxonomy_proposal.json"):
+            try:
+                os.remove("taxonomy_proposal.json")
+            except Exception:
+                pass
+        st.success("Taxonomy reset!")
+        time.sleep(1.0)
+        st.rerun()
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+col_panel1, col_panel2 = st.columns(2)
+
+with col_panel1:
+    with st.container(border=True):
+        st.write("### 📥 Step 1: Scrape & Ingest Reviews")
+        st.write("Extract customer feedback from the live App Store and Play Store.")
+        scrape_limit = st.slider("Reviews to scrape", min_value=5, max_value=300, value=50, step=5)
         
-        # 1. Ingestion
-        status_text.markdown("🔄 **[1/6] Ingesting reviews** (Play Store & App Store)...")
-        progress_bar.progress(0.1)
-        play_records = scrapers.scrape_play_store(limit=50)
-        app_records = scrapers.scrape_app_store(limit=50)
-        reddit_records = scrapers.scrape_reddit()
-        all_ingested = play_records + app_records + reddit_records
-        
-        is_valid, msg = orchestrator.validate_ingestion(all_ingested)
-        if not is_valid:
-            st.error(f"Ingestion failed: {msg}")
-            db_client.log_pipeline_run("Phase 1: Ingestion", "FAILED", len(all_ingested), {"error": msg})
-        else:
-            db_client.insert_raw_feedback(all_ingested)
-            db_client.log_pipeline_run("Phase 1: Ingestion", "COMPLETED", len(all_ingested))
+        if st.button("📥 Start Scraping Run", use_container_width=True):
+            progress_bar = st.progress(0.0)
+            status_text = st.empty()
             
-            # 2. Query Strategist
-            status_text.markdown("🔄 **[2/6] Query Strategist** proposing expanded search keywords...")
-            progress_bar.progress(0.2)
-            db_client.log_pipeline_run("Phase 2: Query Strategist", "STARTED")
-            keywords = query_strategist.run_query_strategist(all_ingested[:100])
-            db_client.log_pipeline_run("Phase 2: Query Strategist", "COMPLETED", len(keywords))
+            status_text.markdown(f"🔄 **[1/2] Scraping stores** (limit: {scrape_limit})...")
+            progress_bar.progress(0.4)
+            play_records = scrapers.scrape_play_store(limit=scrape_limit)
+            app_records = scrapers.scrape_app_store(limit=50)
+            reddit_records = scrapers.scrape_reddit()
+            all_ingested = play_records + app_records + reddit_records
             
-            # 3. Open Coding
-            status_text.markdown("🔄 **[3/6] Open Coding** extracting unconstrained user themes...")
-            progress_bar.progress(0.35)
-            db_client.log_pipeline_run("Phase 3: Open Coding", "STARTED")
-            themes = open_coding.run_open_coding(all_ingested[:300])
-            db_client.log_pipeline_run("Phase 3: Open Coding", "COMPLETED", len(themes))
-            
-            # 4. Taxonomy Synthesizer (Auto-approved)
-            status_text.markdown("🔄 **[4/6] Taxonomy Synthesizer** clustering themes into category proposal...")
-            progress_bar.progress(0.5)
-            db_client.log_pipeline_run("Phase 4: Taxonomy Synthesizer", "STARTED")
-            proposal = taxonomy_synthesizer.run_taxonomy_synthesis(themes, all_ingested[:300])
-            proposal["approved"] = True
-            taxonomy_synthesizer.save_taxonomy_proposal(proposal)
-            db_client.log_pipeline_run("Phase 4: Taxonomy Synthesizer", "COMPLETED")
-            
-            categories = [c["name"] for c in proposal["categories"]]
-            
-            # 5. Classifier (Classification loop)
-            status_text.markdown("🔄 **[5/6] Classifier** loading delta queue...")
-            unprocessed_records = db_client.fetch_unprocessed_feedback(limit=50)
-            if not unprocessed_records:
-                status_text.markdown("✅ **Pipeline complete! No new reviews to classify.**")
+            is_valid, msg = orchestrator.validate_ingestion(all_ingested)
+            if is_valid:
+                status_text.markdown("🔄 **[2/2] Updating filter keywords...**")
+                progress_bar.progress(0.8)
+                db_client.insert_raw_feedback(all_ingested)
+                
+                # Query Strategist
+                db_client.log_pipeline_run("Phase 2: Query Strategist", "STARTED")
+                keywords = query_strategist.run_query_strategist(all_ingested[:100])
+                db_client.log_pipeline_run("Phase 2: Query Strategist", "COMPLETED", len(keywords))
+                
                 progress_bar.progress(1.0)
-                st.success("Delta queue is empty. All reviews classified.")
+                status_text.markdown("✅ **Ingestion complete!**")
+                st.success(f"Ingested {len(all_ingested)} real reviews!")
                 time.sleep(1.5)
                 st.rerun()
+            else:
+                db_client.log_pipeline_run("Phase 1: Ingestion", "FAILED", metadata={"error": msg})
+                st.error(f"Scraping failed: {msg}")
+
+with col_panel2:
+    with st.container(border=True):
+        st.write("### 🚀 Step 2: AI Classification & Auditing")
+        st.write("Run the multi-agent classification pipeline on the unprocessed queue.")
+        classify_limit = st.slider("Reviews to classify", min_value=5, max_value=150, value=20, step=5)
+        
+        if st.button("🚀 Start AI Classification", use_container_width=True):
+            progress_bar = st.progress(0.0)
+            status_text = st.empty()
+            
+            # Auto-generate taxonomy if not exists
+            prop = taxonomy_synthesizer.load_taxonomy_proposal()
+            if not prop or not prop.get("categories"):
+                status_text.markdown("🔄 **[1/3] Synthesizing taxonomy from raw reviews...**")
+                progress_bar.progress(0.2)
+                
+                raw_reviews = db_client.fetch_unprocessed_feedback(limit=100)
+                if not raw_reviews:
+                    st.warning("Please ingest raw reviews first!")
+                    st.stop()
+                    
+                themes = open_coding.run_open_coding(raw_reviews)
+                prop = taxonomy_synthesizer.run_taxonomy_synthesis(themes, raw_reviews)
+                prop["approved"] = True
+                taxonomy_synthesizer.save_taxonomy_proposal(prop)
+                
+            categories = [c["name"] for c in prop["categories"]]
+            
+            status_text.markdown("🔄 **[2/3] Fetching unprocessed reviews...**")
+            progress_bar.progress(0.4)
+            unprocessed_records = db_client.fetch_unprocessed_feedback(limit=classify_limit)
+            
+            if not unprocessed_records:
+                status_text.markdown("✅ **No unprocessed reviews to classify.**")
+                progress_bar.progress(1.0)
+                st.info("Database queue has 0 unclassified records.")
             else:
                 db_client.log_pipeline_run("Phase 5: Classifier", "STARTED")
                 classified = []
                 total_unprocessed = len(unprocessed_records)
                 
                 for i, r in enumerate(unprocessed_records):
-                    pct = 0.5 + (float(i+1) / total_unprocessed) * 0.4
+                    pct = 0.4 + (float(i+1) / total_unprocessed) * 0.4
                     progress_bar.progress(pct)
-                    status_text.markdown(f"⚡ **[5/6] Classifying review [{i+1}/{total_unprocessed}]** (Throttled at 20 RPM to prevent rate limits)...")
+                    status_text.markdown(f"⚡ **Classifying review [{i+1}/{total_unprocessed}]** (Throttled for rate limits)...")
                     
                     res = classifier.classify_review(r["text"], categories)
                     res["review_id"] = r["review_id"]
@@ -323,15 +360,15 @@ with st.container(border=True):
                     db_client.log_pipeline_run("Phase 5: Classifier", "COMPLETED", len(classified))
                     
                     # 6. Auditor
-                    status_text.markdown("🔄 **[6/6] Auditor** running blind re-classification check...")
-                    progress_bar.progress(0.95)
+                    status_text.markdown("🔄 **[3/3] Running Auditor verification...**")
+                    progress_bar.progress(0.9)
                     db_client.log_pipeline_run("Phase 6: Auditor", "STARTED")
                     rate, audited = auditor.run_auditor(classified, categories)
                     db_client.log_pipeline_run("Phase 6: Auditor", "COMPLETED", len(audited), {"agreement_rate": rate})
                     
                     progress_bar.progress(1.0)
-                    status_text.markdown(f"✅ **Pipeline complete!** Agreement rate: {rate:.1%}")
-                    st.success(f"Classified {len(classified)} reviews! Auditor agreement rate: {rate:.1%}")
+                    status_text.markdown(f"✅ **Classification & Auditing complete!** Agreement: {rate:.1%}")
+                    st.success(f"Classified {len(classified)} reviews! Auditor agreement: {rate:.1%}")
                     time.sleep(2.0)
                     st.rerun()
                 else:

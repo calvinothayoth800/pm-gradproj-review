@@ -8,6 +8,13 @@ import db_client
 load_dotenv()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+if not GROQ_API_KEY:
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets"):
+            GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", GROQ_API_KEY)
+    except Exception:
+        pass
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 # Default local rule based classifier for Blinkit category exploration
