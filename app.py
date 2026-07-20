@@ -318,13 +318,13 @@ with col_panel2:
                 value=default_val, 
                 step=1
             )
-            # 3.0s throttle sleep + ~0.5s network latency per review
-            est_seconds = classify_limit * 3.5
+            # 3.0s throttle sleep per batch of 10 + ~0.5s network latency
+            est_seconds = max(1.0, (classify_limit / 10.0) * 3.5)
             if est_seconds >= 60:
                 time_str = f"{int(est_seconds // 60)}m {int(est_seconds % 60)}s"
             else:
                 time_str = f"{int(est_seconds)}s"
-            st.caption(f"⏱️ **Estimated Time to Finish**: {time_str}")
+            st.caption(f"⏱️ **Estimated Time to Finish**: {time_str} (10x faster batch mode!)")
             
         if classify_limit > 0 and st.button("🚀 Start AI Classification", use_container_width=True):
             progress_bar = st.progress(0.0)
@@ -360,37 +360,37 @@ with col_panel2:
                 db_client.log_pipeline_run("Phase 5: Classifier", "STARTED")
                 classified = []
                 total_unprocessed = len(unprocessed_records)
-                current_batch = []
                 
-                for i, r in enumerate(unprocessed_records):
-                    pct = 0.4 + (float(i+1) / total_unprocessed) * 0.4
+                # Split into chunks of 10 for batch classification
+                chunk_size = 10
+                chunks = [unprocessed_records[k:k+chunk_size] for k in range(0, total_unprocessed, chunk_size)]
+                total_chunks = len(chunks)
+                
+                for idx, chunk in enumerate(chunks):
+                    pct = 0.4 + (float(idx+1) / total_chunks) * 0.4
                     progress_bar.progress(pct)
-                    status_text.markdown(f"⚡ **Classifying review [{i+1}/{total_unprocessed}]** (Throttled for rate limits)...")
+                    status_text.markdown(f"⚡ **Classifying batch [{idx+1}/{total_chunks}]** ({len(chunk)} reviews)...")
                     
-                    res = classifier.classify_review(r["text"], categories)
-                    res["review_id"] = r["review_id"]
-                    res["text"] = r["text"]
-                    current_batch.append(res)
+                    batch_res = classifier.classify_reviews_batch(chunk, categories)
                     
-                    # Failsafe chunk saving: save every 10 reviews or at the end
-                    if len(current_batch) == 10 or i == total_unprocessed - 1:
-                        is_valid, msg = orchestrator.validate_classification(current_batch, categories)
-                        if is_valid:
-                            db_client.insert_ai_analytics(current_batch)
-                            classified.extend(current_batch)
-                        else:
-                            st.warning(f"Batch validation warning: {msg}. Saving valid records individually...")
-                            valid_singles = []
-                            for single in current_batch:
-                                is_single_valid, _ = orchestrator.validate_classification([single], categories)
-                                if is_single_valid:
-                                    valid_singles.append(single)
-                            if valid_singles:
-                                db_client.insert_ai_analytics(valid_singles)
-                                classified.extend(valid_singles)
-                        current_batch = []
+                    # Failsafe chunk saving: validate and insert each batch of 10
+                    is_valid, msg = orchestrator.validate_classification(batch_res, categories)
+                    if is_valid:
+                        db_client.insert_ai_analytics(batch_res)
+                        classified.extend(batch_res)
+                    else:
+                        st.warning(f"Batch validation warning in batch {idx+1}: {msg}. Retrying items individually...")
+                        valid_singles = []
+                        for single in batch_res:
+                            is_single_valid, _ = orchestrator.validate_classification([single], categories)
+                            if is_single_valid:
+                                valid_singles.append(single)
+                        if valid_singles:
+                            db_client.insert_ai_analytics(valid_singles)
+                            classified.extend(valid_singles)
                     
-                    if classifier.GROQ_API_KEY and i < total_unprocessed - 1:
+                    # Throttle between batch API calls
+                    if classifier.GROQ_API_KEY and idx < total_chunks - 1:
                         time.sleep(3.0)
                 
                 if classified:
