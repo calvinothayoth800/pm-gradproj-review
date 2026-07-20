@@ -115,6 +115,18 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# Helper to show classifications in a modal popup
+@st.dialog("📋 Classified Feedback Database Records")
+def show_classifications_popup(df):
+    st.write("Below are the classifications currently saved in the database:")
+    if df.empty:
+        st.info("No classified reviews found.")
+    else:
+        st.dataframe(
+            df[["Review ID", "Source", "Timestamp", "Theme", "Sentiment", "User Type", "Root Cause", "Confidence Score"]],
+            use_container_width=True
+        )
+
 # Helper to load dataset
 @st.cache_data(ttl=5)
 def get_dashboard_data():
@@ -260,6 +272,9 @@ with col_m3:
         st.success("Taxonomy reset!")
         time.sleep(1.0)
         st.rerun()
+        
+    if st.button("📋 View Classifications", use_container_width=True):
+        show_classifications_popup(df)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -289,9 +304,9 @@ with col_panel1:
                 db_client.insert_raw_feedback(all_ingested)
                 
                 # Query Strategist
-                db_client.log_pipeline_run("Phase 2: Query Strategist", "STARTED")
+                db_client.log_pipeline_run("Targeted Query Selection", "STARTED")
                 keywords = query_strategist.run_query_strategist(all_ingested[:100])
-                db_client.log_pipeline_run("Phase 2: Query Strategist", "COMPLETED", len(keywords))
+                db_client.log_pipeline_run("Targeted Query Selection", "COMPLETED", len(keywords))
                 
                 progress_bar.progress(1.0)
                 status_text.markdown("✅ **Ingestion complete!**")
@@ -299,7 +314,7 @@ with col_panel1:
                 time.sleep(1.5)
                 st.rerun()
             else:
-                db_client.log_pipeline_run("Phase 1: Ingestion", "FAILED", metadata={"error": msg})
+                db_client.log_pipeline_run("Feedback Ingestion", "FAILED", metadata={"error": msg})
                 st.error(f"Scraping failed: {msg}")
 
 with col_panel2:
@@ -359,7 +374,7 @@ with col_panel2:
                 progress_bar.progress(1.0)
                 st.info("Database queue has 0 unclassified records.")
             else:
-                db_client.log_pipeline_run("Phase 5: Classifier", "STARTED")
+                db_client.log_pipeline_run("AI Classification", "STARTED")
                 classified = []
                 total_unprocessed = len(unprocessed_records)
                 
@@ -411,13 +426,13 @@ with col_panel2:
                         time.sleep(3.0)
                 
                 if classified:
-                    # 6. Auditor
-                    status_text.markdown("🔄 **[3/3] Running Auditor verification...**")
+                    # Consensus Auditing
+                    status_text.markdown("🔄 **[3/3] Running Consensus Auditing verification...**")
                     progress_bar.progress(0.9)
-                    db_client.log_pipeline_run("Phase 5: Classifier", "COMPLETED", len(classified))
+                    db_client.log_pipeline_run("AI Classification", "COMPLETED", len(classified))
                     
                     rate, audited = auditor.run_auditor(classified, categories)
-                    db_client.log_pipeline_run("Phase 6: Auditor", "COMPLETED", len(audited), {"agreement_rate": rate})
+                    db_client.log_pipeline_run("Consensus Auditing", "COMPLETED", len(audited), {"agreement_rate": rate})
                     
                     progress_bar.progress(1.0)
                     status_text.markdown(f"✅ **Classification & Auditing complete!** Agreement: {rate:.1%}")
@@ -425,7 +440,7 @@ with col_panel2:
                     time.sleep(2.0)
                     st.rerun()
                 else:
-                    db_client.log_pipeline_run("Phase 5: Classifier", "FAILED", metadata={"error": "Zero reviews successfully validated."})
+                    db_client.log_pipeline_run("AI Classification", "FAILED", metadata={"error": "Zero reviews successfully validated."})
                     st.error("Classification failed: No records successfully validated and saved.")
 
 # Display brief taxonomy summary if available
@@ -456,7 +471,7 @@ if not df.empty:
     
     # Inter-agent agreement rate from pipeline run logs
     runs = db_client.fetch_pipeline_runs(10)
-    auditor_runs = [r for r in runs if r["phase"] == "Phase 6: Auditor" and r["status"] == "COMPLETED"]
+    auditor_runs = [r for r in runs if r["phase"] == "Consensus Auditing" and r["status"] == "COMPLETED"]
     if auditor_runs:
         last_val = json.loads(auditor_runs[0]["validation_results"]) if isinstance(auditor_runs[0]["validation_results"], str) else auditor_runs[0]["validation_results"]
         agreement_rate = f"{last_val.get('agreement_rate', 0.0):.1%}" if last_val else "N/A"
@@ -504,10 +519,10 @@ if not df.empty:
         st.bar_chart(cohort_counts.set_index("Cohort"))
 
 # ----------------------------------------------------
-# Human Checkpoint: Manual Spot Check Console (Phase 6)
+# Human Checkpoint: Manual Spot Check Console
 # ----------------------------------------------------
 st.markdown("<hr style='border:0; border-top:1px solid #1f2937; margin:20px 0;'>", unsafe_allow_html=True)
-st.subheader("🎯 Phase 6 Checkpoint: Human Spot-Checking Console")
+st.subheader("🎯 Human Spot-Checking & Validation Console")
 
 # Fetch records flagged for spot check where validation has not been decided yet
 if not df.empty and "Spot Checked" in df.columns:

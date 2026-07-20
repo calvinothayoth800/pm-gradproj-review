@@ -59,10 +59,10 @@ def run_pipeline():
     print("======================================================================")
     
     # ----------------------------------------------------
-    # Phase 1: Ingestion
+    # Feedback Ingestion
     # ----------------------------------------------------
-    print("\n--- Phase 1: Ingestion ---")
-    db_client.log_pipeline_run("Phase 1: Ingestion", "STARTED")
+    print("\n--- Feedback Ingestion ---")
+    db_client.log_pipeline_run("Feedback Ingestion", "STARTED")
     
     play_records = scrapers.scrape_play_store(limit=100)
     app_records = scrapers.scrape_app_store(limit=100)
@@ -72,25 +72,25 @@ def run_pipeline():
     
     is_valid, msg = validate_ingestion(all_ingested)
     if not is_valid:
-        print(f"[Orchestrator Error] Phase 1 Ingestion Validation Failed: {msg}")
-        db_client.log_pipeline_run("Phase 1: Ingestion", "FAILED", len(all_ingested), {"error": msg})
+        print(f"[Orchestrator Error] Feedback Ingestion Validation Failed: {msg}")
+        db_client.log_pipeline_run("Feedback Ingestion", "FAILED", len(all_ingested), {"error": msg})
         sys.exit(1)
         
     # Save raw feedback
     db_client.insert_raw_feedback(all_ingested)
-    db_client.log_pipeline_run("Phase 1: Ingestion", "COMPLETED", len(all_ingested), {"message": msg})
+    db_client.log_pipeline_run("Feedback Ingestion", "COMPLETED", len(all_ingested), {"message": msg})
     print(f"[Orchestrator] Ingestion Complete. {msg}")
     
     # ----------------------------------------------------
-    # Phase 2: Query Strategist
+    # Targeted Query Selection
     # ----------------------------------------------------
-    print("\n--- Phase 2: Query Strategist ---")
-    db_client.log_pipeline_run("Phase 2: Query Strategist", "STARTED")
+    print("\n--- Targeted Query Selection ---")
+    db_client.log_pipeline_run("Targeted Query Selection", "STARTED")
     
     sample_100 = random_sample(all_ingested, 100)
     keywords = query_strategist.run_query_strategist(sample_100)
     
-    db_client.log_pipeline_run("Phase 2: Query Strategist", "COMPLETED", len(keywords), {"keywords": keywords})
+    db_client.log_pipeline_run("Targeted Query Selection", "COMPLETED", len(keywords), {"keywords": keywords})
     print(f"[Orchestrator] Proposed keywords dynamically loaded and saved: {len(keywords)} tags.")
     
     # Check if a finalized and approved taxonomy already exists in local files
@@ -102,22 +102,22 @@ def run_pipeline():
         categories = [c["name"] for c in taxonomy_proposal["categories"]]
     else:
         # ----------------------------------------------------
-        # Phase 3: Open Coding
+        # Theme Discovery & Open Coding
         # ----------------------------------------------------
-        print("\n--- Phase 3: Open Coding ---")
-        db_client.log_pipeline_run("Phase 3: Open Coding", "STARTED")
+        print("\n--- Theme Discovery & Open Coding ---")
+        db_client.log_pipeline_run("Theme Discovery & Open Coding", "STARTED")
         
         sample_300 = random_sample(all_ingested, 300)
         themes = open_coding.run_open_coding(sample_300)
         
-        db_client.log_pipeline_run("Phase 3: Open Coding", "COMPLETED", len(themes), {"themes": themes})
+        db_client.log_pipeline_run("Theme Discovery & Open Coding", "COMPLETED", len(themes), {"themes": themes})
         print(f"[Orchestrator] Extracted {len(themes)} unconstrained themes.")
         
         # ----------------------------------------------------
-        # Phase 4: Taxonomy Synthesizer (Checkpoint Halt)
+        # Taxonomy Synthesis (Checkpoint Halt)
         # ----------------------------------------------------
-        print("\n--- Phase 4: Taxonomy Synthesizer & Human Checkpoint ---")
-        db_client.log_pipeline_run("Phase 4: Taxonomy Synthesizer", "AWAITING_APPROVAL")
+        print("\n--- Taxonomy Synthesis & Human Checkpoint ---")
+        db_client.log_pipeline_run("Taxonomy Synthesis", "AWAITING_APPROVAL")
         
         proposal = taxonomy_synthesizer.run_taxonomy_synthesis(themes, sample_300)
         proposal["approved"] = True
@@ -126,17 +126,17 @@ def run_pipeline():
         print("[Orchestrator] Taxonomy auto-approved. Proceeding to Classification.")
         
     # ----------------------------------------------------
-    # Phase 5: Classifiers (with retry logic)
+    # AI Classification (with retry logic)
     # ----------------------------------------------------
-    print("\n--- Phase 5: Classifier ---")
-    db_client.log_pipeline_run("Phase 5: Classifier", "STARTED")
+    print("\n--- AI Classification ---")
+    db_client.log_pipeline_run("AI Classification", "STARTED")
     
     unprocessed = db_client.fetch_unprocessed_feedback(limit=900)
     print(f"[Orchestrator] Processing delta queue: {len(unprocessed)} unclassified records.")
     
     if not unprocessed:
         print("[Orchestrator] Delta is zero. All feedback already classified.")
-        db_client.log_pipeline_run("Phase 5: Classifier", "COMPLETED", 0, {"message": "Delta queue is empty"})
+        db_client.log_pipeline_run("AI Classification", "COMPLETED", 0, {"message": "Delta queue is empty"})
         return
         
     classified_records = []
@@ -165,7 +165,7 @@ def run_pipeline():
     
     if not is_valid:
         print(f"[Orchestrator Warning] Classification validation failed: {msg}. Retrying once with retry context...")
-        db_client.log_pipeline_run("Phase 5: Classifier", "FAILED_RETRYING", len(classified_records), {"error": msg})
+        db_client.log_pipeline_run("AI Classification", "FAILED_RETRYING", len(classified_records), {"error": msg})
         
         # Retry once
         time.sleep(5.0)
@@ -182,23 +182,23 @@ def run_pipeline():
         is_valid, msg = validate_classification(classified_records, categories)
         if not is_valid:
             print(f"[Orchestrator Error] Classification Retry Validation Failed: {msg}. Halting pipeline.")
-            db_client.log_pipeline_run("Phase 5: Classifier", "FAILED", len(classified_records), {"error": msg})
+            db_client.log_pipeline_run("AI Classification", "FAILED", len(classified_records), {"error": msg})
             sys.exit(1)
             
     # Persist classified records
     db_client.insert_ai_analytics(classified_records)
-    db_client.log_pipeline_run("Phase 5: Classifier", "COMPLETED", len(classified_records), {"message": msg})
+    db_client.log_pipeline_run("AI Classification", "COMPLETED", len(classified_records), {"message": msg})
     print(f"[Orchestrator] Classification successfully finalized: {msg}")
     
     # ----------------------------------------------------
-    # Phase 6: Auditor
+    # Consensus Auditing
     # ----------------------------------------------------
-    print("\n--- Phase 6: Auditor ---")
-    db_client.log_pipeline_run("Phase 6: Auditor", "STARTED")
+    print("\n--- Consensus Auditing ---")
+    db_client.log_pipeline_run("Consensus Auditing", "STARTED")
     
     agreement_rate, audited = auditor.run_auditor(classified_records, categories)
     
-    db_client.log_pipeline_run("Phase 6: Auditor", "COMPLETED", len(audited), {
+    db_client.log_pipeline_run("Consensus Auditing", "COMPLETED", len(audited), {
         "agreement_rate": agreement_rate,
         "audited_count": len(audited)
     })

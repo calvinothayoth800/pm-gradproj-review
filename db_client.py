@@ -334,10 +334,10 @@ def fetch_analyzed_data():
                         "Timestamp": item["timestamp"],
                         "Text": item["text"],
                         "App Version": item.get("app_version_approx", "N/A"),
-                        "Theme": analytics["theme"],
-                        "Sentiment": analytics["sentiment"],
-                        "User Type": analytics["user_type"],
-                        "Root Cause": analytics["root_cause"],
+                        "Theme": analytics.get("theme", "N/A"),
+                        "Sentiment": analytics.get("sentiment", "N/A"),
+                        "User Type": analytics.get("user_type", "N/A"),
+                        "Root Cause": analytics.get("root_cause", "N/A"),
                         "Confidence Score": analytics.get("confidence_score", 0),
                         "Audited": analytics.get("audited", False),
                         "Audit Theme": analytics.get("audit_theme"),
@@ -345,7 +345,7 @@ def fetch_analyzed_data():
                         "Audit User Type": analytics.get("audit_user_type"),
                         "Spot Checked": analytics.get("spot_checked", False),
                         "Spot Check Valid": analytics.get("spot_check_valid"),
-                        "Analyzed At": analytics["analyzed_at"]
+                        "Analyzed At": analytics.get("analyzed_at", "N/A")
                     })
             
             import pandas as pd
