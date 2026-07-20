@@ -2,6 +2,7 @@ import os
 import json
 import sqlite3
 import hashlib
+import time
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
@@ -34,8 +35,6 @@ def init_db():
         # Check connectivity by testing Supabase import and initializing
         try:
             from supabase import create_client
-            # Verify basic DNS/connection with a quick ping logic, if it fails, fall back to SQLite
-            # We will catch any getaddrinfo/connection exceptions on first query
             create_client(SUPABASE_URL, SUPABASE_KEY)
         except Exception as e:
             print(f"[DB Client] Supabase connection failed: {e}. Activating Local SQLite mode.")
@@ -118,6 +117,16 @@ def get_supabase_client():
     except Exception:
         return None
 
+def retry_supabase_call(fn, retries=3, delay=1.0):
+    """Retry a Supabase API call up to n times for transient network glitches."""
+    for i in range(retries):
+        try:
+            return fn()
+        except Exception as e:
+            if i == retries - 1:
+                raise e
+            time.sleep(delay)
+
 # --- Ingestion operations ---
 
 def insert_raw_feedback(records):
@@ -135,15 +144,10 @@ def insert_raw_feedback(records):
         return len(records)
     else:
         client = get_supabase_client()
-        try:
+        def call():
             res = client.table("raw_feedback").upsert(records, on_conflict="review_id").execute()
             return len(res.data) if res.data else len(records)
-        except Exception as e:
-            print(f"[DB Client] Supabase error in insert_raw_feedback: {e}. Retrying locally...")
-            # Toggle SQLite fallback on the fly
-            _USE_LOCAL_SQLITE = True
-            init_db()
-            return insert_raw_feedback(records)
+        return retry_supabase_call(call)
 
 def fetch_unprocessed_feedback(limit=900):
     """Retrieve feedback records that do not have associated analytics classifications."""
@@ -160,14 +164,10 @@ def fetch_unprocessed_feedback(limit=900):
         return [dict(row) for row in cursor.fetchall()]
     else:
         client = get_supabase_client()
-        try:
+        def call():
             res = client.table("unprocessed_feedback").select("review_id, text").limit(limit).execute()
             return res.data if res.data else []
-        except Exception as e:
-            print(f"[DB Client] Supabase error: {e}. Falling back to SQLite.")
-            _USE_LOCAL_SQLITE = True
-            init_db()
-            return fetch_unprocessed_feedback(limit)
+        return retry_supabase_call(call)
 
 # --- Keywords operations ---
 
@@ -180,14 +180,10 @@ def fetch_keywords():
         return [row["keyword"] for row in cursor.fetchall()]
     else:
         client = get_supabase_client()
-        try:
+        def call():
             res = client.table("filter_keywords").select("keyword").execute()
             return [row["keyword"] for row in res.data] if res.data else []
-        except Exception as e:
-            print(f"[DB Client] Supabase error in fetch_keywords: {e}. Falling back to SQLite.")
-            _USE_LOCAL_SQLITE = True
-            init_db()
-            return fetch_keywords()
+        return retry_supabase_call(call)
 
 def insert_keywords(keywords):
     """Set the filter keywords list (clearing previous and inserting new)."""
@@ -200,16 +196,12 @@ def insert_keywords(keywords):
         _sqlite_conn.commit()
     else:
         client = get_supabase_client()
-        try:
+        def call():
             client.table("filter_keywords").delete().neq("keyword", "placeholder").execute()
             records = [{"keyword": kw} for kw in keywords]
             if records:
                 client.table("filter_keywords").insert(records).execute()
-        except Exception as e:
-            print(f"[DB Client] Supabase error in insert_keywords: {e}. Falling back to SQLite.")
-            _USE_LOCAL_SQLITE = True
-            init_db()
-            insert_keywords(keywords)
+        retry_supabase_call(call)
 
 # --- Analytics Operations ---
 
@@ -232,14 +224,10 @@ def insert_ai_analytics(records):
         return len(records)
     else:
         client = get_supabase_client()
-        try:
+        def call():
             res = client.table("ai_analytics").upsert(records, on_conflict="review_id").execute()
             return len(res.data) if res.data else len(records)
-        except Exception as e:
-            print(f"[DB Client] Supabase error in insert_ai_analytics: {e}. Falling back to SQLite.")
-            _USE_LOCAL_SQLITE = True
-            init_db()
-            return insert_ai_analytics(records)
+        return retry_supabase_call(call)
 
 # --- Audit Runs ---
 
@@ -258,7 +246,7 @@ def log_pipeline_run(phase, status, records_processed=0, validation_results=None
         _sqlite_conn.commit()
     else:
         client = get_supabase_client()
-        try:
+        def call():
             record = {
                 "phase": phase,
                 "status": status,
@@ -267,11 +255,10 @@ def log_pipeline_run(phase, status, records_processed=0, validation_results=None
                 "metadata": metadata
             }
             client.table("pipeline_runs").insert(record).execute()
+        try:
+            retry_supabase_call(call)
         except Exception as e:
-            print(f"[DB Client] Supabase error in log_pipeline_run: {e}. Falling back to SQLite.")
-            _USE_LOCAL_SQLITE = True
-            init_db()
-            log_pipeline_run(phase, status, records_processed, validation_results, metadata)
+            print(f"[DB Client] Failed to log pipeline run to Supabase: {e}")
 
 # --- Fetch Dashboard Data ---
 
@@ -310,54 +297,49 @@ def fetch_analyzed_data():
         return pd.DataFrame(rows)
     else:
         client = get_supabase_client()
-        try:
+        def call():
             response = client.table("raw_feedback").select(
                 "review_id, source, timestamp, text, app_version_approx, ai_analytics(theme, sentiment, user_type, root_cause, confidence_score, audited, audit_theme, audit_sentiment, audit_user_type, spot_checked, spot_check_valid, analyzed_at)"
             ).order("timestamp", desc=True).execute()
-            
-            data = response.data
-            if not data:
-                import pandas as pd
-                return pd.DataFrame()
-                
-            rows = []
-            for item in data:
-                analytics = item.get("ai_analytics")
-                # Handle cases where postgrest returns a list or dict
-                if isinstance(analytics, list) and len(analytics) > 0:
-                    analytics = analytics[0]
-                
-                if analytics and isinstance(analytics, dict):
-                    rows.append({
-                        "Review ID": item["review_id"],
-                        "Source": item["source"],
-                        "Timestamp": item["timestamp"],
-                        "Text": item["text"],
-                        "App Version": item.get("app_version_approx", "N/A"),
-                        "Theme": analytics.get("theme", "N/A"),
-                        "Sentiment": analytics.get("sentiment", "N/A"),
-                        "User Type": analytics.get("user_type", "N/A"),
-                        "Root Cause": analytics.get("root_cause", "N/A"),
-                        "Confidence Score": analytics.get("confidence_score", 0),
-                        "Audited": analytics.get("audited", False),
-                        "Audit Theme": analytics.get("audit_theme"),
-                        "Audit Sentiment": analytics.get("audit_sentiment"),
-                        "Audit User Type": analytics.get("audit_user_type"),
-                        "Spot Checked": analytics.get("spot_checked", False),
-                        "Spot Check Valid": analytics.get("spot_check_valid"),
-                        "Analyzed At": analytics.get("analyzed_at", "N/A")
-                    })
-            
+            return response.data
+        
+        data = retry_supabase_call(call)
+        if not data:
             import pandas as pd
-            if not rows:
-                return pd.DataFrame()
-            df = pd.DataFrame(rows)
-            return df
-        except Exception as e:
-            print(f"[DB Client] Supabase error in fetch_analyzed_data: {e}. Falling back to SQLite.")
-            _USE_LOCAL_SQLITE = True
-            init_db()
-            return fetch_analyzed_data()
+            return pd.DataFrame()
+            
+        rows = []
+        for item in data:
+            analytics = item.get("ai_analytics")
+            if isinstance(analytics, list) and len(analytics) > 0:
+                analytics = analytics[0]
+            
+            if analytics and isinstance(analytics, dict):
+                rows.append({
+                    "Review ID": item["review_id"],
+                    "Source": item["source"],
+                    "Timestamp": item["timestamp"],
+                    "Text": item["text"],
+                    "App Version": item.get("app_version_approx", "N/A"),
+                    "Theme": analytics.get("theme", "N/A"),
+                    "Sentiment": analytics.get("sentiment", "N/A"),
+                    "User Type": analytics.get("user_type", "N/A"),
+                    "Root Cause": analytics.get("root_cause", "N/A"),
+                    "Confidence Score": analytics.get("confidence_score", 0),
+                    "Audited": analytics.get("audited", False),
+                    "Audit Theme": analytics.get("audit_theme"),
+                    "Audit Sentiment": analytics.get("audit_sentiment"),
+                    "Audit User Type": analytics.get("audit_user_type"),
+                    "Spot Checked": analytics.get("spot_checked", False),
+                    "Spot Check Valid": analytics.get("spot_check_valid"),
+                    "Analyzed At": analytics.get("analyzed_at", "N/A")
+                })
+        
+        import pandas as pd
+        if not rows:
+            return pd.DataFrame()
+        df = pd.DataFrame(rows)
+        return df
 
 def update_spot_check(review_id, is_valid):
     """Save user manual spot-check result."""
@@ -372,16 +354,12 @@ def update_spot_check(review_id, is_valid):
         _sqlite_conn.commit()
     else:
         client = get_supabase_client()
-        try:
+        def call():
             client.table("ai_analytics").update({
                 "spot_checked": True,
                 "spot_check_valid": is_valid
             }).eq("review_id", review_id).execute()
-        except Exception as e:
-            print(f"[DB Client] Supabase error in update_spot_check: {e}. Falling back to SQLite.")
-            _USE_LOCAL_SQLITE = True
-            init_db()
-            update_spot_check(review_id, is_valid)
+        retry_supabase_call(call)
 
 def fetch_pipeline_runs(limit=10):
     """Retrieve run audit logs."""
@@ -392,14 +370,10 @@ def fetch_pipeline_runs(limit=10):
         return [dict(row) for row in cursor.fetchall()]
     else:
         client = get_supabase_client()
-        try:
+        def call():
             res = client.table("pipeline_runs").select("*").order("id", desc=True).limit(limit).execute()
             return res.data if res.data else []
-        except Exception as e:
-            print(f"[DB Client] Supabase error in fetch_pipeline_runs: {e}. Falling back to SQLite.")
-            _USE_LOCAL_SQLITE = True
-            init_db()
-            return fetch_pipeline_runs(limit)
+        return retry_supabase_call(call)
 
 def get_db_counts():
     """Get count of unclassified and classified reviews."""
@@ -413,7 +387,7 @@ def get_db_counts():
         return {"unclassified": unclassified, "classified": classified}
     else:
         client = get_supabase_client()
-        try:
+        def call():
             res_unclass = client.table("unprocessed_feedback").select("review_id", count="exact").limit(1).execute()
             unclassified = res_unclass.count if res_unclass.count is not None else 0
             
@@ -421,8 +395,4 @@ def get_db_counts():
             classified = res_class.count if res_class.count is not None else 0
             
             return {"unclassified": unclassified, "classified": classified}
-        except Exception as e:
-            print(f"[DB Client] Supabase error in get_db_counts: {e}. Falling back to SQLite.")
-            _USE_LOCAL_SQLITE = True
-            init_db()
-            return get_db_counts()
+        return retry_supabase_call(call)
