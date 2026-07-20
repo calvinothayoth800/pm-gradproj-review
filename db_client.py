@@ -43,10 +43,16 @@ def retry_supabase_call(fn, retries=3, delay=1.0):
 
 def insert_raw_feedback(records):
     """Upsert raw feedback records."""
+    valid_cols = {"review_id", "source", "timestamp", "text", "app_version_approx", "created_at"}
+    sanitized_records = []
+    for r in records:
+        sanitized = {k: v for k, v in r.items() if k in valid_cols}
+        sanitized_records.append(sanitized)
+        
     client = get_supabase_client()
     def call():
-        res = client.table("raw_feedback").upsert(records, on_conflict="review_id").execute()
-        return len(res.data) if res.data else len(records)
+        res = client.table("raw_feedback").upsert(sanitized_records, on_conflict="review_id").execute()
+        return len(res.data) if res.data else len(sanitized_records)
     return retry_supabase_call(call)
 
 def fetch_unprocessed_feedback(limit=900):
@@ -81,10 +87,22 @@ def insert_keywords(keywords):
 
 def insert_ai_analytics(records):
     """Upsert classification results into ai_analytics."""
+    valid_cols = {
+        "review_id", "theme", "sentiment", "user_type", "root_cause", 
+        "confidence_score", "audited", "audit_theme", "audit_sentiment", 
+        "audit_user_type", "spot_checked", "spot_check_valid", "analyzed_at"
+    }
+    sanitized_records = []
+    for r in records:
+        sanitized = {k: v for k, v in r.items() if k in valid_cols}
+        if "root_cause" not in sanitized:
+            sanitized["root_cause"] = "Item could not be explored"
+        sanitized_records.append(sanitized)
+        
     client = get_supabase_client()
     def call():
-        res = client.table("ai_analytics").upsert(records, on_conflict="review_id").execute()
-        return len(res.data) if res.data else len(records)
+        res = client.table("ai_analytics").upsert(sanitized_records, on_conflict="review_id").execute()
+        return len(res.data) if res.data else len(sanitized_records)
     return retry_supabase_call(call)
 
 # --- Audit Runs ---
