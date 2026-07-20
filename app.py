@@ -244,9 +244,11 @@ st.subheader("⚡ Analytics Pipeline Control Console")
 # Database status metrics
 col_m1, col_m2, col_m3 = st.columns(3)
 with col_m1:
-    st.metric("📥 Unclassified Reviews in DB", db_counts["unclassified"])
+    m1_placeholder = st.empty()
+    m1_placeholder.metric("📥 Unclassified Reviews in DB", db_counts["unclassified"])
 with col_m2:
-    st.metric("🚀 Classified Reviews in DB", db_counts["classified"])
+    m2_placeholder = st.empty()
+    m2_placeholder.metric("🚀 Classified Reviews in DB", db_counts["classified"])
 with col_m3:
     if st.button("🔄 Reset Feedback Categories", use_container_width=True):
         import os
@@ -367,7 +369,8 @@ with col_panel2:
                 total_chunks = len(chunks)
                 
                 for idx, chunk in enumerate(chunks):
-                    pct = 0.4 + (float(idx+1) / total_chunks) * 0.4
+                    # Progress bar scales from 0% to 90% during classification loop
+                    pct = (float(idx+1) / total_chunks) * 0.9
                     progress_bar.progress(pct)
                     status_text.markdown(f"⚡ **Classifying batch [{idx+1}/{total_chunks}]** ({len(chunk)} reviews)...")
                     
@@ -378,6 +381,12 @@ with col_panel2:
                     if is_valid:
                         db_client.insert_ai_analytics(batch_res)
                         classified.extend(batch_res)
+                        
+                        # Dynamically update the metrics on the screen!
+                        cur_class = db_counts["classified"] + len(classified)
+                        cur_unclass = max(0, db_counts["unclassified"] - len(classified))
+                        m1_placeholder.metric("📥 Unclassified Reviews in DB", cur_unclass)
+                        m2_placeholder.metric("🚀 Classified Reviews in DB", cur_class)
                     else:
                         st.warning(f"Batch validation warning in batch {idx+1}: {msg}. Retrying items individually...")
                         valid_singles = []
@@ -388,6 +397,12 @@ with col_panel2:
                         if valid_singles:
                             db_client.insert_ai_analytics(valid_singles)
                             classified.extend(valid_singles)
+                            
+                            # Dynamically update the metrics on the screen!
+                            cur_class = db_counts["classified"] + len(classified)
+                            cur_unclass = max(0, db_counts["unclassified"] - len(classified))
+                            m1_placeholder.metric("📥 Unclassified Reviews in DB", cur_unclass)
+                            m2_placeholder.metric("🚀 Classified Reviews in DB", cur_class)
                     
                     # Throttle between batch API calls
                     if classifier.GROQ_API_KEY and idx < total_chunks - 1:
