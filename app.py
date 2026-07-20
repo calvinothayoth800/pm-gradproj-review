@@ -528,7 +528,10 @@ if not df.empty and "Spot Checked" in df.columns:
         with st.container(border=True):
             st.write(f"**Review Text:** \"{current_check['Text']}\"")
             st.write(f"**Source:** {current_check['Source']} | **App Version:** {current_check['App Version']}")
-            st.write(f"**AI Theme Classification:** `{current_check['Theme']}`")
+            if current_check['Theme'] == "Ineligible / AI Failure":
+                st.markdown(f"**AI Theme Classification:** :red[{current_check['Theme']}] ⚠️ *AI classification failed.*")
+            else:
+                st.write(f"**AI Theme Classification:** `{current_check['Theme']}`")
             st.write(f"**AI Sentiment Classification:** `{current_check['Sentiment']}`")
             st.write(f"**AI Cohort Classification:** `{current_check['User Type']}`")
             

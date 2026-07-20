@@ -328,12 +328,26 @@ Provide ONLY raw JSON. No conversational text or markdown blocks. Do not wrap in
                 })
             return results
     except Exception as e:
-        print(f"[Classifier] Batch classification failed: {e}. Falling back to rule-based classification immediately.")
+        print(f"[Classifier] Batch classification failed: {e}. Retrying items individually via LLM...")
         
-    results = []
-    for r in reviews_list:
-        res = rule_based_fallback(r["text"], categories)
-        res["review_id"] = r["review_id"]
-        res["text"] = r["text"]
-        results.append(res)
-    return results
+        results = []
+        for r in reviews_list:
+            try:
+                res = classify_review(r["text"], categories)
+                res["review_id"] = r["review_id"]
+                res["text"] = r["text"]
+                results.append(res)
+            except Exception as e_single:
+                print(f"[Classifier] Individual LLM retry failed for review {r['review_id']}: {e_single}. Flagging as AI failure.")
+                results.append({
+                    "review_id": r["review_id"],
+                    "text": r["text"],
+                    "theme": "Ineligible / AI Failure",
+                    "sentiment": "Negative",
+                    "user_type": "Casual Shopper",
+                    "root_cause": f"AI Failure: {str(e_single)[:100]}",
+                    "confidence_score": 1,
+                    "spot_checked": True,
+                    "spot_check_valid": None
+                })
+        return results
