@@ -13,3 +13,8 @@ __pycache__/
 # Streamlit local secrets
 .streamlit/config.toml
 .streamlit/secrets.toml
+
+# Local storage and state
+local_storage.db
+taxonomy_proposal.json
+
