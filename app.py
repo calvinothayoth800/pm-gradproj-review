@@ -239,150 +239,110 @@ st.markdown(f"<div style='font-size: 0.85rem; margin-bottom: 20px; font-weight: 
 # ----------------------------------------------------
 # Multi-Agent Phase Controller Panel
 # ----------------------------------------------------
-st.subheader("⚡ Multi-Agent Pipeline Control Console")
+st.subheader("⚡ Analytics Pipeline Control Console")
 
-col_ctrl1, col_ctrl2 = st.columns([1, 1])
-
-with col_ctrl1:
-    with st.container(border=True):
-        st.write("### ⚡ Pipeline Setup")
-        st.write("Ingest feedback, expand keywords, extract themes, and compile taxonomy in a single step.")
-        
-        if st.button("⚡ Run Pipeline Setup & Generate Taxonomy", use_container_width=True):
-            progress_bar = st.progress(0.0)
-            status_text = st.empty()
-            
-            # 1. Ingestion
-            status_text.markdown("🔄 **[1/4] Ingesting reviews** (Play Store & App Store)...")
-            progress_bar.progress(0.1)
-            play_records = scrapers.scrape_play_store(limit=50)
-            app_records = scrapers.scrape_app_store(limit=50)
-            reddit_records = scrapers.scrape_reddit()
-            all_ingested = play_records + app_records + reddit_records
-            
-            is_valid, msg = orchestrator.validate_ingestion(all_ingested)
-            if is_valid:
-                db_client.insert_raw_feedback(all_ingested)
-                db_client.log_pipeline_run("Phase 1: Ingestion", "COMPLETED", len(all_ingested))
-                
-                # 2. Query Strategist
-                status_text.markdown("🔄 **[2/4] Query Strategist** proposing expanded filter keywords...")
-                progress_bar.progress(0.4)
-                db_client.log_pipeline_run("Phase 2: Query Strategist", "STARTED")
-                keywords = query_strategist.run_query_strategist(all_ingested[:100])
-                db_client.log_pipeline_run("Phase 2: Query Strategist", "COMPLETED", len(keywords))
-                
-                # 3. Open Coding
-                status_text.markdown("🔄 **[3/4] Open Coding** extracting unconstrained user themes...")
-                progress_bar.progress(0.7)
-                db_client.log_pipeline_run("Phase 3: Open Coding", "STARTED")
-                themes = open_coding.run_open_coding(all_ingested[:300])
-                db_client.log_pipeline_run("Phase 3: Open Coding", "COMPLETED", len(themes))
-                
-                # 4. Taxonomy Synthesizer
-                status_text.markdown("🔄 **[4/4] Taxonomy Synthesizer** clustering themes into category proposal...")
-                progress_bar.progress(0.9)
-                db_client.log_pipeline_run("Phase 4: Taxonomy Synthesizer", "STARTED")
-                proposal = taxonomy_synthesizer.run_taxonomy_synthesis(themes, all_ingested[:300])
-                db_client.log_pipeline_run("Phase 4: Taxonomy Synthesizer", "AWAITING_APPROVAL")
-                
-                progress_bar.progress(1.0)
-                status_text.markdown("✅ **Pipeline Setup Complete!**")
-                st.success("Proposed taxonomy generated! Please review and approve it in the right panel.")
-                time.sleep(2.0)
-                st.rerun()
-            else:
-                db_client.log_pipeline_run("Phase 1: Ingestion", "FAILED", metadata={"error": msg})
-                st.error(f"Ingestion failed: {msg}")
-
-    st.markdown("<br>", unsafe_allow_html=True)
+with st.container(border=True):
+    st.write("### ⚡ Run End-to-End Analytics Pipeline")
+    st.write("Click below to ingest feedback, synthesize a category taxonomy, classify the reviews, and run validation audits in a single step.")
     
-    with st.container(border=True):
-        st.write("### 🚀 AI Classification & Auditing")
-        st.write(f"Classify and audit delta queue ({unprocessed_count} unprocessed records).")
+    if st.button("⚡ Run End-to-End Analytics Pipeline", use_container_width=True):
+        progress_bar = st.progress(0.0)
+        status_text = st.empty()
         
-        # Load taxonomy to see if approved
-        prop = taxonomy_synthesizer.load_taxonomy_proposal()
-        taxonomy_approved = prop.get("approved", False) if prop else False
+        # 1. Ingestion
+        status_text.markdown("🔄 **[1/6] Ingesting reviews** (Play Store & App Store)...")
+        progress_bar.progress(0.1)
+        play_records = scrapers.scrape_play_store(limit=50)
+        app_records = scrapers.scrape_app_store(limit=50)
+        reddit_records = scrapers.scrape_reddit()
+        all_ingested = play_records + app_records + reddit_records
         
-        if not taxonomy_approved:
-            st.info("🔒 Taxonomy not approved. Review and approve the proposed taxonomy in the right panel to unlock classification.")
-            st.button("🚀 Run Classification & Auditing", disabled=True, use_container_width=True)
+        is_valid, msg = orchestrator.validate_ingestion(all_ingested)
+        if not is_valid:
+            st.error(f"Ingestion failed: {msg}")
+            db_client.log_pipeline_run("Phase 1: Ingestion", "FAILED", len(all_ingested), {"error": msg})
         else:
-            if st.button("🚀 Run Classification & Auditing", use_container_width=True):
-                categories = [c["name"] for c in prop["categories"]]
-                
-                # Fetch unprocessed
-                unprocessed_records = db_client.fetch_unprocessed_feedback(limit=900)
-                if not unprocessed_records:
-                    st.warning("No unprocessed records in database.")
-                else:
-                    db_client.log_pipeline_run("Phase 5: Classifier", "STARTED")
-                    
-                    progress_bar = st.progress(0.0)
-                    status_text = st.empty()
-                    
-                    classified = []
-                    total_unprocessed = len(unprocessed_records)
-                    
-                    for i, r in enumerate(unprocessed_records):
-                        status_text.markdown(f"⚡ **Classifying review [{i+1}/{total_unprocessed}]** (Throttled at 20 RPM to prevent rate limits)...")
-                        progress_bar.progress(float(i+1) / total_unprocessed)
-                        
-                        res = classifier.classify_review(r["text"], categories)
-                        res["review_id"] = r["review_id"]
-                        res["text"] = r["text"]
-                        classified.append(res)
-                        
-                        # Throttle
-                        if classifier.GROQ_API_KEY and i < total_unprocessed - 1:
-                            time.sleep(3.0)
-                    
-                    is_valid, msg = orchestrator.validate_classification(classified, categories)
-                    if is_valid:
-                        db_client.insert_ai_analytics(classified)
-                        db_client.log_pipeline_run("Phase 5: Classifier", "COMPLETED", len(classified))
-                        
-                        # Run auditor
-                        status_text.markdown("🔄 **Phase 6: Auditor** running blind re-classification checking...")
-                        db_client.log_pipeline_run("Phase 6: Auditor", "STARTED")
-                        rate, audited = auditor.run_auditor(classified, categories)
-                        db_client.log_pipeline_run("Phase 6: Auditor", "COMPLETED", len(audited), {"agreement_rate": rate})
-                        
-                        status_text.markdown(f"✅ **Classification & Auditing complete!** Agreement rate: {rate:.1%}")
-                        st.success(f"Successfully classified {len(classified)} records! Agreement rate: {rate:.1%}")
-                        time.sleep(2.0)
-                        st.rerun()
-                    else:
-                        db_client.log_pipeline_run("Phase 5: Classifier", "FAILED", metadata={"error": msg})
-                        st.error(f"Classification validation failed: {msg}")
-
-with col_ctrl2:
-    with st.container(border=True):
-        st.write("### 📋 Category Taxonomy & Approval")
-        prop = taxonomy_synthesizer.load_taxonomy_proposal()
-        
-        if not prop:
-            st.info("No taxonomy proposed yet. Run the Pipeline Setup in the left panel to generate one.")
-        elif prop.get("approved"):
-            st.success("✅ **Taxonomy Approved: Classification Unlocked**")
-            st.write("Approved Category Clusters:")
-            for c in prop.get("categories", []):
-                st.markdown(f"- **{c['name']}**: *{c['description']}*")
-        else:
-            st.warning("🔴 **Taxonomy Awaiting Human Approval**")
-            st.write("Review the proposed categories and click approve below:")
-            for c in prop.get("categories", []):
-                st.markdown(f"**{c['name']}**")
-                st.markdown(f"*{c['description']}*")
-                st.caption(f"Example Quote: \"{c['examples'][0]}\"")
-                
-            if st.button("💚 Approve Proposed Taxonomy & Unlock Classifier", use_container_width=True):
-                prop["approved"] = True
-                taxonomy_synthesizer.save_taxonomy_proposal(prop)
-                st.success("Taxonomy successfully approved! Classifier unlocked.")
+            db_client.insert_raw_feedback(all_ingested)
+            db_client.log_pipeline_run("Phase 1: Ingestion", "COMPLETED", len(all_ingested))
+            
+            # 2. Query Strategist
+            status_text.markdown("🔄 **[2/6] Query Strategist** proposing expanded search keywords...")
+            progress_bar.progress(0.2)
+            db_client.log_pipeline_run("Phase 2: Query Strategist", "STARTED")
+            keywords = query_strategist.run_query_strategist(all_ingested[:100])
+            db_client.log_pipeline_run("Phase 2: Query Strategist", "COMPLETED", len(keywords))
+            
+            # 3. Open Coding
+            status_text.markdown("🔄 **[3/6] Open Coding** extracting unconstrained user themes...")
+            progress_bar.progress(0.35)
+            db_client.log_pipeline_run("Phase 3: Open Coding", "STARTED")
+            themes = open_coding.run_open_coding(all_ingested[:300])
+            db_client.log_pipeline_run("Phase 3: Open Coding", "COMPLETED", len(themes))
+            
+            # 4. Taxonomy Synthesizer (Auto-approved)
+            status_text.markdown("🔄 **[4/6] Taxonomy Synthesizer** clustering themes into category proposal...")
+            progress_bar.progress(0.5)
+            db_client.log_pipeline_run("Phase 4: Taxonomy Synthesizer", "STARTED")
+            proposal = taxonomy_synthesizer.run_taxonomy_synthesis(themes, all_ingested[:300])
+            proposal["approved"] = True
+            taxonomy_synthesizer.save_taxonomy_proposal(proposal)
+            db_client.log_pipeline_run("Phase 4: Taxonomy Synthesizer", "COMPLETED")
+            
+            categories = [c["name"] for c in proposal["categories"]]
+            
+            # 5. Classifier (Classification loop)
+            status_text.markdown("🔄 **[5/6] Classifier** loading delta queue...")
+            unprocessed_records = db_client.fetch_unprocessed_feedback(limit=900)
+            if not unprocessed_records:
+                status_text.markdown("✅ **Pipeline complete! No new reviews to classify.**")
+                progress_bar.progress(1.0)
+                st.success("Delta queue is empty. All reviews classified.")
                 time.sleep(1.5)
                 st.rerun()
+            else:
+                db_client.log_pipeline_run("Phase 5: Classifier", "STARTED")
+                classified = []
+                total_unprocessed = len(unprocessed_records)
+                
+                for i, r in enumerate(unprocessed_records):
+                    pct = 0.5 + (float(i+1) / total_unprocessed) * 0.4
+                    progress_bar.progress(pct)
+                    status_text.markdown(f"⚡ **[5/6] Classifying review [{i+1}/{total_unprocessed}]** (Throttled at 20 RPM to prevent rate limits)...")
+                    
+                    res = classifier.classify_review(r["text"], categories)
+                    res["review_id"] = r["review_id"]
+                    res["text"] = r["text"]
+                    classified.append(res)
+                    
+                    if classifier.GROQ_API_KEY and i < total_unprocessed - 1:
+                        time.sleep(3.0)
+                
+                is_valid, msg = orchestrator.validate_classification(classified, categories)
+                if is_valid:
+                    db_client.insert_ai_analytics(classified)
+                    db_client.log_pipeline_run("Phase 5: Classifier", "COMPLETED", len(classified))
+                    
+                    # 6. Auditor
+                    status_text.markdown("🔄 **[6/6] Auditor** running blind re-classification check...")
+                    progress_bar.progress(0.95)
+                    db_client.log_pipeline_run("Phase 6: Auditor", "STARTED")
+                    rate, audited = auditor.run_auditor(classified, categories)
+                    db_client.log_pipeline_run("Phase 6: Auditor", "COMPLETED", len(audited), {"agreement_rate": rate})
+                    
+                    progress_bar.progress(1.0)
+                    status_text.markdown(f"✅ **Pipeline complete!** Agreement rate: {rate:.1%}")
+                    st.success(f"Classified {len(classified)} reviews! Auditor agreement rate: {rate:.1%}")
+                    time.sleep(2.0)
+                    st.rerun()
+                else:
+                    db_client.log_pipeline_run("Phase 5: Classifier", "FAILED", metadata={"error": msg})
+                    st.error(f"Classification validation failed: {msg}")
+
+# Display brief taxonomy summary if available
+prop = taxonomy_synthesizer.load_taxonomy_proposal()
+if prop:
+    categories = [c["name"] for c in prop.get("categories", [])]
+    st.info(f"📋 **Active Taxonomy Categories Discovered**: {', '.join(categories)}")
 
 # ----------------------------------------------------
 # KPIs & Analytical Metrics
