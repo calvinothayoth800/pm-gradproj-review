@@ -426,36 +426,39 @@ st.markdown("<hr style='border:0; border-top:1px solid #1f2937; margin:20px 0;'>
 st.subheader("🎯 Phase 6 Checkpoint: Human Spot-Checking Console")
 
 # Fetch records flagged for spot check where validation has not been decided yet
-spot_check_queue = df[(df["Spot Checked"] == True) & (df["Spot Check Valid"].isna())]
+if not df.empty and "Spot Checked" in df.columns:
+    spot_check_queue = df[(df["Spot Checked"] == True) & (df["Spot Check Valid"].isna())]
 
-if spot_check_queue.empty:
-    st.info("🎉 All spot checks are complete. No pending records to verify.")
-else:
-    st.write(f"The Auditor flagged {len(spot_check_queue)} records for validation. Please confirm if the classification is correct:")
-    
-    current_check = spot_check_queue.iloc[0]
-    review_id = current_check["Review ID"]
-    
-    with st.container(border=True):
-        st.write(f"**Review Text:** \"{current_check['Text']}\"")
-        st.write(f"**Source:** {current_check['Source']} | **App Version:** {current_check['App Version']}")
-        st.write(f"**AI Theme Classification:** `{current_check['Theme']}`")
-        st.write(f"**AI Sentiment Classification:** `{current_check['Sentiment']}`")
-        st.write(f"**AI Cohort Classification:** `{current_check['User Type']}`")
+    if spot_check_queue.empty:
+        st.info("🎉 All spot checks are complete. No pending records to verify.")
+    else:
+        st.write(f"The Auditor flagged {len(spot_check_queue)} records for validation. Please confirm if the classification is correct:")
         
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            if st.button("✅ Confirm Classification as Valid", use_container_width=True):
-                db_client.update_spot_check(review_id, True)
-                st.success("Validated classification!")
-                st.cache_data.clear()
-                st.rerun()
-        with col_btn2:
-            if st.button("❌ Flag Classification as Invalid", use_container_width=True):
-                db_client.update_spot_check(review_id, False)
-                st.warning("Flagged classification as incorrect.")
-                st.cache_data.clear()
-                st.rerun()
+        current_check = spot_check_queue.iloc[0]
+        review_id = current_check["Review ID"]
+        
+        with st.container(border=True):
+            st.write(f"**Review Text:** \"{current_check['Text']}\"")
+            st.write(f"**Source:** {current_check['Source']} | **App Version:** {current_check['App Version']}")
+            st.write(f"**AI Theme Classification:** `{current_check['Theme']}`")
+            st.write(f"**AI Sentiment Classification:** `{current_check['Sentiment']}`")
+            st.write(f"**AI Cohort Classification:** `{current_check['User Type']}`")
+            
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                if st.button("✅ Confirm Classification as Valid", use_container_width=True):
+                    db_client.update_spot_check(review_id, True)
+                    st.success("Validated classification!")
+                    st.cache_data.clear()
+                    st.rerun()
+            with col_btn2:
+                if st.button("❌ Flag Classification as Invalid", use_container_width=True):
+                    db_client.update_spot_check(review_id, False)
+                    st.warning("Flagged classification as incorrect.")
+                    st.cache_data.clear()
+                    st.rerun()
+else:
+    st.info("📋 No classified reviews in database to spot check. Run the classification pipeline first.")
 
 # Display spot check stats
 if total_reviews > 0:
