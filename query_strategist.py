@@ -61,7 +61,7 @@ Example output format: ["keyword1", "keyword2", "keyword3"]
 """
     try:
         from groq import Groq
-        client = Groq(api_key=GROQ_API_KEY)
+        client = Groq(api_key=GROQ_API_KEY, timeout=6.0)
         
         chat_completion = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],

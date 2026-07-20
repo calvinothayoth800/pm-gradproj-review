@@ -397,7 +397,7 @@ def analyze_review_with_groq(text):
         
     from groq import Groq
     try:
-        client = Groq(api_key=api_key)
+        client = Groq(api_key=api_key, timeout=6.0)
         prompt = f"""You are a Growth PM and Data Architect. Analyze this music app user review:
 "{text}"
 

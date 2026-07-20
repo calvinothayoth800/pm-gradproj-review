@@ -3,6 +3,7 @@ import json
 import time
 import re
 from dotenv import load_dotenv
+from groq import Groq
 import db_client
 
 load_dotenv()
@@ -134,7 +135,7 @@ Example format:
 Provide ONLY raw JSON. No conversational text or markdown blocks.
 """
     try:
-        client = Groq(api_key=GROQ_API_KEY)
+        client = Groq(api_key=GROQ_API_KEY, timeout=6.0)
         chat_completion = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             model=GROQ_MODEL,
@@ -195,8 +196,7 @@ def classify_reviews_batch(reviews_list, categories):
             results.append(res)
         return results
         
-    from groq import Groq
-    client = Groq(api_key=GROQ_API_KEY)
+    client = Groq(api_key=GROQ_API_KEY, timeout=6.0)
     
     allowed_sentiments = ["Positive", "Negative", "Disappointed", "Highly Frustrated"]
     allowed_cohorts = ["Power User", "Casual Shopper", "New Shopper", "Organic Shopper"]
@@ -273,13 +273,12 @@ Provide ONLY raw JSON. No conversational text or markdown blocks. Do not wrap in
                 })
             return results
     except Exception as e:
-        print(f"[Classifier] Batch classification failed: {e}. Falling back to single-item classification.")
+        print(f"[Classifier] Batch classification failed: {e}. Falling back to rule-based classification immediately.")
         
     results = []
     for r in reviews_list:
-        res = classify_review(r["text"], categories)
+        res = rule_based_fallback(r["text"], categories)
         res["review_id"] = r["review_id"]
         res["text"] = r["text"]
         results.append(res)
-        time.sleep(1.0)
     return results
