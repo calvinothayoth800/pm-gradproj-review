@@ -18,65 +18,123 @@ if not GROQ_API_KEY:
         pass
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
+# Fuzzy match LLM outputs to active category list
+def match_closest_category(output_theme, categories):
+    if not categories:
+        return "Fresh Produce Out-Of-Stock"
+    if output_theme in categories:
+        return output_theme
+        
+    clean_output = re.sub(r'[^a-zA-Z0-9]', '', str(output_theme)).lower()
+    for cat in categories:
+        clean_cat = re.sub(r'[^a-zA-Z0-9]', '', str(cat)).lower()
+        if clean_output == clean_cat or clean_output in clean_cat or clean_cat in clean_output:
+            return cat
+            
+    # Check if a category matches the best overlap word
+    words = clean_output.split()
+    for word in words:
+        if len(word) > 3:
+            for cat in categories:
+                if word in cat.lower():
+                    return cat
+                    
+    return categories[0]
+
 # Default local rule based classifier for Blinkit category exploration
 def rule_based_fallback(text, categories):
-    """Local regex fallback classifier when Groq is unavailable."""
+    """Local semantic rule-based classifier when Groq is unavailable."""
     text_lower = text.lower()
     
-    # Defaults
-    theme = categories[0] if categories else "Fresh Produce Out-Of-Stock"
+    theme = None
     sentiment = "Disappointed"
-    user_cohort = "Casual Listener"  # Default fallback cohort, we will map to grocery terms: Casual Shopper
-    root_cause = "Item or category could not be explored"
-    confidence = 3
+    user_cohort = "Casual Shopper"
+    root_cause = "General user feedback on app features"
     
-    # Simple regex mapping
+    # 1. Direct High-Priority Specific Regex Matches for test compatibility
     if any(w in text_lower for w in ["stock", "unavailable", "empty", "no veggies", "no fruits"]):
-        theme = next((c for c in categories if "Stock" in c or "stock" in c.lower()), theme)
+        theme = next((c for c in categories if "Stock" in c or "stock" in c.lower()), None)
         sentiment = "Highly Frustrated"
         root_cause = "Fresh produce categories frequently show out of stock items"
     elif any(w in text_lower for w in ["reorder", "widget", "1-click", "re-order"]):
-        theme = next((c for c in categories if "Reorder" in c or "reorder" in c.lower()), theme)
+        theme = next((c for c in categories if "Reorder" in c or "reorder" in c.lower()), None)
         sentiment = "Positive"
         root_cause = "Successful use of 1-click reorder shortcut"
         user_cohort = "Power User"
     elif any(w in text_lower for w in ["clutter", "design", "layout", "menu", "submenu", "navigation"]):
-        theme = next((c for c in categories if "Clutter" in c or "Browse" in c or "browse" in c.lower()), theme)
+        theme = next((c for c in categories if "Clutter" in c or "Browse" in c or "browse" in c.lower()), None)
         sentiment = "Negative"
         root_cause = "Deep nested submenus and cluttered interface slow down category exploration"
     elif any(w in text_lower for w in ["substitute", "force", "replace"]):
-        theme = next((c for c in categories if "Substitute" in c or "substitute" in c.lower()), theme)
+        theme = next((c for c in categories if "Substitute" in c or "substitute" in c.lower()), None)
         sentiment = "Highly Frustrated"
         root_cause = "App forces item substitutions instead of category alternatives"
     elif any(w in text_lower for w in ["recommend", "recommendation", "stale", "carousel", "never tried"]):
-        theme = next((c for c in categories if "recommend" in c.lower() or "stale" in c.lower()), theme)
+        theme = next((c for c in categories if "recommend" in c.lower() or "stale" in c.lower()), None)
         sentiment = "Negative"
         root_cause = "Category recommendations do not refresh or adapt to user profile"
     elif any(w in text_lower for w in ["search", "type", "find"]):
-        theme = next((c for c in categories if "Search" in c or "search" in c.lower()), theme)
+        theme = next((c for c in categories if "Search" in c or "search" in c.lower()), None)
         sentiment = "Negative"
         root_cause = "Browse is slow, prompting user to search directly"
 
-    # Map general sentiment terms
-    if any(w in text_lower for w in ["love", "great", "excellent", "fast", "convenient"]):
+    # 2. General Topic Semantic Overlaps (if no high-priority match succeeded)
+    if not theme:
+        TOPIC_KEYWORDS = {
+            "Pricing & Refund Issues": ["money", "price", "expensive", "cost", "charge", "refund", "billing", "pay", "rupees", "rs", "cashback", "waste of money", "overcharged", "eatable"],
+            "Product Quality & Freshness": ["quality", "fresh", "rotten", "expired", "stale", "milk", "vegetables", "fruits", "bread", "curd", "eatable", "outdated", "damaged", "bad items", "freshness"],
+            "Delivery Speed & Delay": ["speed", "fast", "slow", "late", "delay", "timing", "minutes", "mins", "hours", "quick", "timely", "delivery"],
+            "App Navigation & Clutter": ["clutter", "design", "layout", "menu", "submenu", "navigation", "reorder", "widget", "search", "browse", "carousel", "recommend", "ui", "app update"],
+            "Customer Support Issues": ["support", "complaint", "listen", "service", "customer care", "contact", "chat", "call", "agent", "help"]
+        }
+        
+        scores = {}
+        for topic, kws in TOPIC_KEYWORDS.items():
+            score = sum(1 for kw in kws if kw in text_lower)
+            scores[topic] = score
+            
+        best_topic = max(scores, key=scores.get)
+        max_score = scores[best_topic]
+        
+        if max_score > 0:
+            theme = match_closest_category(best_topic, categories)
+            if best_topic == "Pricing & Refund Issues":
+                root_cause = "User dissatisfied with prices, fees, or refund handling"
+            elif best_topic == "Product Quality & Freshness":
+                root_cause = "User complaining about damaged, expired, or low quality fresh items"
+            elif best_topic == "Delivery Speed & Delay":
+                root_cause = "User reporting slow delivery times or delay in order fulfillment"
+            elif best_topic == "App Navigation & Clutter":
+                root_cause = "User reporting UI clutter or issues exploring categories"
+            elif best_topic == "Customer Support Issues":
+                root_cause = "User dissatisfied with support agent response or complaint serialness"
+        else:
+            # Check if there is an "Other" or "General" category in the list
+            for cat in categories:
+                if any(g in cat.lower() for g in ["other", "general", "uncategorized", "feedback"]):
+                    theme = cat
+                    break
+            if not theme:
+                theme = categories[0] if categories else "Fresh Produce Out-Of-Stock"
+                
+    # 3. Sentiment Overrides
+    if any(w in text_lower for w in ["love", "great", "excellent", "fast", "convenient", "amazing"]):
         sentiment = "Positive"
-    elif any(w in text_lower for w in ["hate", "worst", "terrible", "useless", "uninstall"]):
+    elif any(w in text_lower for w in ["worst", "hate", "terrible", "useless", "uninstall", "fraud", "out of stock", "empty"]):
         sentiment = "Highly Frustrated"
         
-    # Map general cohorts
+    # 4. Cohort Overrides
     if any(w in text_lower for w in ["weekly", "every day", "daily", "always"]):
         user_cohort = "Power User"
     elif any(w in text_lower for w in ["first time", "tried", "new"]):
         user_cohort = "New Shopper"
-    else:
-        user_cohort = "Casual Shopper"
 
     return {
         "theme": theme,
         "sentiment": sentiment,
         "user_type": user_cohort,
-        "root_cause": root_cause,
-        "confidence_score": confidence
+        "root_cause": root_cause[:150],
+        "confidence_score": 4 if theme else 3
     }
 
 def clean_llm_json(response_text):
@@ -151,9 +209,7 @@ Provide ONLY raw JSON. No conversational text or markdown blocks.
         if result:
             # Validate output fields and fallbacks
             theme = result.get("pain_point_category")
-            if theme not in categories:
-                # Default to closest match or first category
-                result["pain_point_category"] = categories[0] if categories else "Fresh Produce Out-Of-Stock"
+            result["pain_point_category"] = match_closest_category(theme, categories)
                 
             sentiment = result.get("sentiment_severity")
             if sentiment not in allowed_sentiments:
@@ -245,8 +301,7 @@ Provide ONLY raw JSON. No conversational text or markdown blocks. Do not wrap in
                     continue
                     
                 theme = c.get("pain_point_category")
-                if theme not in categories:
-                    theme = categories[0] if categories else "Fresh Produce Out-Of-Stock"
+                theme = match_closest_category(theme, categories)
                     
                 sentiment = c.get("sentiment_severity")
                 if sentiment not in allowed_sentiments:

@@ -203,3 +203,22 @@ def get_db_counts():
         
         return {"unclassified": unclassified, "classified": classified}
     return retry_supabase_call(call)
+
+def clear_all_classifications():
+    """Delete all classifications in ai_analytics."""
+    client = get_supabase_client()
+    def call():
+        client.table("ai_analytics").delete().neq("review_id", "placeholder").execute()
+    retry_supabase_call(call)
+
+def update_classification_category(review_id, new_category):
+    """Flag classification as invalid and reassign theme."""
+    client = get_supabase_client()
+    def call():
+        client.table("ai_analytics").update({
+            "spot_checked": True,
+            "spot_check_valid": False,
+            "theme": new_category
+        }).eq("review_id", review_id).execute()
+    retry_supabase_call(call)
+

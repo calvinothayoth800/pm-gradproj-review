@@ -271,6 +271,12 @@ with col_m3:
         time.sleep(1.0)
         st.rerun()
         
+    if st.button("🗑️ Clear Classifications", use_container_width=True):
+        db_client.clear_all_classifications()
+        st.success("All classifications deleted!")
+        time.sleep(1.0)
+        st.rerun()
+        
     if st.button("📋 View Feedback Categories", use_container_width=True):
         show_taxonomy_popup()
 
@@ -526,6 +532,21 @@ if not df.empty and "Spot Checked" in df.columns:
             st.write(f"**AI Sentiment Classification:** `{current_check['Sentiment']}`")
             st.write(f"**AI Cohort Classification:** `{current_check['User Type']}`")
             
+            # Load active categories list for manual corrections
+            categories_list = []
+            prop = taxonomy_synthesizer.load_taxonomy_proposal()
+            if prop and prop.get("categories"):
+                categories_list = [c["name"] for c in prop["categories"]]
+            if not categories_list:
+                categories_list = ["Pricing & Refund Issues", "Product Quality & Freshness", "Delivery Speed & Delay", "App Navigation & Clutter", "Customer Support Issues"]
+            
+            st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
+            correct_cat = st.selectbox(
+                "💡 If invalid, select the correct category to reassign:",
+                options=categories_list,
+                index=categories_list.index(current_check["Theme"]) if current_check["Theme"] in categories_list else 0
+            )
+            
             col_btn1, col_btn2 = st.columns(2)
             with col_btn1:
                 if st.button("✅ Confirm Classification as Valid", use_container_width=True):
@@ -534,9 +555,9 @@ if not df.empty and "Spot Checked" in df.columns:
                     st.cache_data.clear()
                     st.rerun()
             with col_btn2:
-                if st.button("❌ Flag Classification as Invalid", use_container_width=True):
-                    db_client.update_spot_check(review_id, False)
-                    st.warning("Flagged classification as incorrect.")
+                if st.button("❌ Flag & Reassign Category", use_container_width=True):
+                    db_client.update_classification_category(review_id, correct_cat)
+                    st.warning(f"Flagged as invalid and reassigned to '{correct_cat}'!")
                     st.cache_data.clear()
                     st.rerun()
 else:
