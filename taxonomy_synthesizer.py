@@ -18,51 +18,69 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 TAXONOMY_FILE = "taxonomy_proposal.json"
 
 DEFAULT_TAXONOMY = {
-    "approved": False,
+    "approved": True,
     "categories": [
         {
-            "name": "Fresh Produce Out-Of-Stock",
-            "description": "User experiences issues finding fresh vegetables or fruits in stock in their local delivery radius.",
+            "name": "Habit_Loop_Repetitive_Buying",
+            "description": "User buys the same daily/weekly items repeatedly and uses Blinkit purely as a routine utility, ignoring other categories.",
+            "mapped_unmet_need": "N1: Habitual Blinders & Intent-Only Shopping",
             "examples": [
-                "Blinkit category recommendations are so bad. I only buy vegetables but it keeps showing pet food.",
-                "Blinkit keeps recommending items that are out of stock in my area. Why explore new categories then?"
+                "I only buy milk and eggs on Blinkit every morning. Never browse anything else.",
+                "Opened app just for bread as usual. Didn't see any other sections."
             ]
         },
         {
-            "name": "Reorder Widget Convenience",
-            "description": "User highlights positive experiences or speed improvements using the 1-click reorder produce features.",
+            "name": "Trust_Quality_Barrier_Non_Grocery",
+            "description": "User doubts product authenticity, freshness, return policies, or quality for high-value/non-grocery categories (Electronics, Beauty, Pet Care, Baby Care).",
+            "mapped_unmet_need": "N2: High Perceived Risk in Non-Grocery Categories",
             "examples": [
-                "I love the 'reorder' widget on Blinkit! Makes buying my weekly vegetables in 1 click so easy."
+                "Wont buy headphones or cosmetics on 10 min delivery. What if it's fake or damaged?",
+                "Don't trust buying electronics here. Prefer Amazon for proper warranty."
             ]
         },
         {
-            "name": "Category Browse Clutter",
-            "description": "User expresses frustration with hard-to-navigate category layouts, submenus, or buried items.",
+            "name": "Search_Only_Bypass",
+            "description": "User relies exclusively on the direct search bar to buy specific items and completely bypasses category browsing, home feeds, or curated widgets.",
+            "mapped_unmet_need": "N1: Habitual Blinders & Intent-Only Shopping",
             "examples": [
-                "The category browse layout is cluttered. Cannot find organic milk easily on this app update.",
-                "Beautiful new UI in Blinkit, but why did they hide the 'Fresh Produce' category under submenus?"
+                "I just type what I want in the search bar, buy it, and close the app.",
+                "Search bar is the only thing I use. Category icons are too cluttered."
             ]
         },
         {
-            "name": "Forced Substitutes",
-            "description": "Frustrations when the system suggests or forces replacements for out-of-stock items instead of category browsing.",
+            "name": "Price_Value_Trial_Hesitation",
+            "description": "User feels non-grocery items are overpriced, lack trial discounts, or lack bundle incentives compared to specialized platforms (Amazon/Nykaa).",
+            "mapped_unmet_need": "N3: Absence of Contextual Discovery & Trial Incentives",
             "examples": [
-                "The app keeps forcing substitutes when items are out of stock instead of letting me browse similar categories."
+                "Non-grocery items are expensive without any sample discounts.",
+                "Why would I buy beauty products here without Nykaa discounts?"
             ]
         },
         {
-            "name": "Stale recommendations",
-            "description": "Home recommendation strips or 'never tried' carousels remain static and don't match active interest.",
+            "name": "UI_Category_Visibility_Clutter",
+            "description": "User complains that non-grocery categories are hidden, hard to navigate, or overwhelmed by crowded promotional banners.",
+            "mapped_unmet_need": "N3: Absence of Contextual Discovery & Trial Incentives",
             "examples": [
-                "Every time I open the app, it shows 'never tried' categories which I don't care about.",
-                "Blinkit delivery is fast but the category recommendation algorithm is stale. Same old suggestions."
+                "App UI is so crowded with banners. Can't find where pet care category is.",
+                "Category navigation is buried under multiple submenus."
             ]
         },
         {
-            "name": "Search Preference",
-            "description": "Users prefer using direct text searches because catalog category browsing is sluggish or broken.",
+            "name": "Successful_Category_Exploration",
+            "description": "Positive feedback where user successfully discovered and purchased from a new non-grocery category.",
+            "mapped_unmet_need": "Positive Reinforcement",
             "examples": [
-                "The search feature works well, but category-based navigation is cluttered and broken."
+                "Glad I discovered pet toys on Blinkit! Delivered in 10 mins.",
+                "Tried buying skin care for the first time here and loved the experience."
+            ]
+        },
+        {
+            "name": "Out_Of_Scope_Operations",
+            "description": "Generic logistics, late delivery, rider behavior, missing items, damaged packaging, or customer support refund complaints.",
+            "mapped_unmet_need": "Operational Noise (Filtered Out)",
+            "examples": [
+                "Rider was late by 30 mins.",
+                "Bad customer support. Refund not processed for rotten mangoes."
             ]
         }
     ]

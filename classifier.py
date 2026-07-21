@@ -48,93 +48,64 @@ def rule_based_fallback(text, categories):
     
     theme = None
     sentiment = "Disappointed"
-    user_cohort = "Casual Shopper"
+    user_cohort = "Unspecified_Insufficient_Context"
     root_cause = "General user feedback on app features"
+    is_discovery_relevant = True
     
-    # 1. Direct High-Priority Specific Regex Matches for test compatibility
-    if any(w in text_lower for w in ["stock", "unavailable", "empty", "no veggies", "no fruits"]):
-        theme = next((c for c in categories if "Stock" in c or "stock" in c.lower()), None)
+    # 1. Operational & Logistics Out of Scope Noise
+    if any(w in text_lower for w in ["late", "delay", "rider", "delivery boy", "refund", "rotten", "damaged", "defected", "customer service", "bad service", "handling charge", "extra fee"]):
+        theme = next((c for c in categories if "Out_Of_Scope" in c or "Operations" in c or "Out-Of-Stock" in c), "Out_Of_Scope_Operations")
         sentiment = "Highly Frustrated"
-        root_cause = "Fresh produce categories frequently show out of stock items"
-    elif any(w in text_lower for w in ["reorder", "widget", "1-click", "re-order"]):
-        theme = next((c for c in categories if "Reorder" in c or "reorder" in c.lower()), None)
+        root_cause = "Operational delivery delay or customer support dispute"
+        is_discovery_relevant = False
+    elif any(w in text_lower for w in ["search", "type", "direct search", "search bar", "find"]):
+        theme = next((c for c in categories if "Search" in c or "search" in c.lower()), "Search_Only_Bypass")
+        sentiment = "Negative"
+        root_cause = "Uses direct search bar exclusively to bypass category browsing"
+        user_cohort = "Single_Category_Shopper"
+    elif any(w in text_lower for w in ["reorder", "widget", "1-click", "routine", "daily", "milk", "eggs", "every morning"]):
+        theme = next((c for c in categories if "Habit" in c or "Reorder" in c or "reorder" in c.lower()), "Habit_Loop_Repetitive_Buying")
+        sentiment = "Positive" if "reorder" in text_lower or "love" in text_lower else "Disappointed"
+        root_cause = "Buys routine daily essentials repeatedly, ignoring non-grocery categories"
+        user_cohort = "Power_Grocery_Shopper"
+    elif any(w in text_lower for w in ["clutter", "design", "layout", "menu", "submenu", "navigation", "buried", "banner"]):
+        theme = next((c for c in categories if "UI" in c or "Clutter" in c or "Browse" in c), "UI_Category_Visibility_Clutter")
+        sentiment = "Negative"
+        root_cause = "Crowded UI banners and deep submenus obscure non-grocery sections"
+    elif any(w in text_lower for w in ["expensive", "price", "cost", "discount", "nykaa", "amazon", "overpriced"]):
+        theme = next((c for c in categories if "Price" in c or "price" in c.lower()), "Price_Value_Trial_Hesitation")
+        sentiment = "Disappointed"
+        root_cause = "Unwilling to test non-grocery categories without trial incentives"
+    elif any(w in text_lower for w in ["fake", "quality", "warranty", "electronics", "headphones", "cosmetics", "trust"]):
+        theme = next((c for c in categories if "Trust" in c or "Quality" in c), "Trust_Quality_Barrier_Non_Grocery")
+        sentiment = "Highly Frustrated"
+        root_cause = "Doubts authenticity and warranty for high-value non-grocery categories"
+        user_cohort = "Category_Explorer"
+    elif any(w in text_lower for w in ["discovered", "first time", "tried", "love finding", "pet toys"]):
+        theme = next((c for c in categories if "Successful" in c or "Exploration" in c), "Successful_Category_Exploration")
         sentiment = "Positive"
-        root_cause = "Successful use of 1-click reorder shortcut"
-        user_cohort = "Power User"
-    elif any(w in text_lower for w in ["clutter", "design", "layout", "menu", "submenu", "navigation"]):
-        theme = next((c for c in categories if "Clutter" in c or "Browse" in c or "browse" in c.lower()), None)
-        sentiment = "Negative"
-        root_cause = "Deep nested submenus and cluttered interface slow down category exploration"
-    elif any(w in text_lower for w in ["substitute", "force", "replace"]):
-        theme = next((c for c in categories if "Substitute" in c or "substitute" in c.lower()), None)
-        sentiment = "Highly Frustrated"
-        root_cause = "App forces item substitutions instead of category alternatives"
-    elif any(w in text_lower for w in ["recommend", "recommendation", "stale", "carousel", "never tried"]):
-        theme = next((c for c in categories if "recommend" in c.lower() or "stale" in c.lower()), None)
-        sentiment = "Negative"
-        root_cause = "Category recommendations do not refresh or adapt to user profile"
-    elif any(w in text_lower for w in ["search", "type", "find"]):
-        theme = next((c for c in categories if "Search" in c or "search" in c.lower()), None)
-        sentiment = "Negative"
-        root_cause = "Browse is slow, prompting user to search directly"
+        root_cause = "Successfully discovered and bought non-grocery items"
+        user_cohort = "Category_Explorer"
 
-    # 2. General Topic Semantic Overlaps (if no high-priority match succeeded)
     if not theme:
-        TOPIC_KEYWORDS = {
-            "Pricing & Refund Issues": ["money", "price", "expensive", "cost", "charge", "refund", "billing", "pay", "rupees", "rs", "cashback", "waste of money", "overcharged", "eatable"],
-            "Product Quality & Freshness": ["quality", "fresh", "rotten", "expired", "stale", "milk", "vegetables", "fruits", "bread", "curd", "eatable", "outdated", "damaged", "bad items", "freshness"],
-            "Delivery Speed & Delay": ["speed", "fast", "slow", "late", "delay", "timing", "minutes", "mins", "hours", "quick", "timely", "delivery"],
-            "App Navigation & Clutter": ["clutter", "design", "layout", "menu", "submenu", "navigation", "reorder", "widget", "search", "browse", "carousel", "recommend", "ui", "app update"],
-            "Customer Support Issues": ["support", "complaint", "listen", "service", "customer care", "contact", "chat", "call", "agent", "help"]
-        }
-        
-        scores = {}
-        for topic, kws in TOPIC_KEYWORDS.items():
-            score = sum(1 for kw in kws if kw in text_lower)
-            scores[topic] = score
-            
-        best_topic = max(scores, key=scores.get)
-        max_score = scores[best_topic]
-        
-        if max_score > 0:
-            theme = match_closest_category(best_topic, categories)
-            if best_topic == "Pricing & Refund Issues":
-                root_cause = "User dissatisfied with prices, fees, or refund handling"
-            elif best_topic == "Product Quality & Freshness":
-                root_cause = "User complaining about damaged, expired, or low quality fresh items"
-            elif best_topic == "Delivery Speed & Delay":
-                root_cause = "User reporting slow delivery times or delay in order fulfillment"
-            elif best_topic == "App Navigation & Clutter":
-                root_cause = "User reporting UI clutter or issues exploring categories"
-            elif best_topic == "Customer Support Issues":
-                root_cause = "User dissatisfied with support agent response or complaint serialness"
-        else:
-            # Check if there is an "Other" or "General" category in the list
-            for cat in categories:
-                if any(g in cat.lower() for g in ["other", "general", "uncategorized", "feedback"]):
-                    theme = cat
-                    break
-            if not theme:
-                theme = categories[0] if categories else "Fresh Produce Out-Of-Stock"
-                
-    # 3. Sentiment Overrides
+        # Default fallback to Out_Of_Scope if generic short noise
+        theme = next((c for c in categories if "Out_Of_Scope" in c), categories[0] if categories else "Out_Of_Scope_Operations")
+        if "Out_Of_Scope" in theme:
+            is_discovery_relevant = False
+
+    # Sentiment overrides
     if any(w in text_lower for w in ["love", "great", "excellent", "fast", "convenient", "amazing"]):
         sentiment = "Positive"
-    elif any(w in text_lower for w in ["worst", "hate", "terrible", "useless", "uninstall", "fraud", "out of stock", "empty"]):
+    elif any(w in text_lower for w in ["worst", "hate", "terrible", "useless", "uninstall", "fraud"]):
         sentiment = "Highly Frustrated"
-        
-    # 4. Cohort Overrides
-    if any(w in text_lower for w in ["weekly", "every day", "daily", "always"]):
-        user_cohort = "Power User"
-    elif any(w in text_lower for w in ["first time", "tried", "new"]):
-        user_cohort = "New Shopper"
 
     return {
         "theme": theme,
         "sentiment": sentiment,
         "user_type": user_cohort,
         "root_cause": root_cause[:150],
-        "confidence_score": 4 if theme else 3
+        "confidence_score": 4 if theme else 3,
+        "is_discovery_relevant": is_discovery_relevant
     }
 
 def create_groq_completion(client, messages, response_format=None, max_tokens=200):
@@ -185,21 +156,26 @@ def clean_llm_json(response_text):
 def classify_review(text, categories, raise_on_error=False):
     """
     Classifier Agent:
-    Uses Groq JSON mode to classify a raw review text against the active taxonomy.
+    Uses Groq JSON mode to classify a raw review text against the active PM Category Discovery taxonomy.
     """
     if not GROQ_API_KEY:
         return rule_based_fallback(text, categories)
         
-    # Prompt outlining taxonomy and enums
-    allowed_sentiments = ["Positive", "Negative", "Disappointed", "Highly Frustrated"]
-    allowed_cohorts = ["Power User", "Casual Shopper", "New Shopper", "Organic Shopper"]
+    allowed_sentiments = ["Positive", "Disappointed", "Highly Frustrated", "Neutral"]
+    allowed_cohorts = ["Power_Grocery_Shopper", "Category_Explorer", "Single_Category_Shopper", "Unspecified_Insufficient_Context"]
     
     prompt = f"""
-You are a Growth PM and Data Architect analyzing category exploration and discovery on the grocery app Blinkit.
-Analyze this review:
+You are an expert Principal Product Manager on Blinkit's Growth Team specializing in Category Discovery and User Shopping Behavior.
+Analyze this customer review:
 "{text}"
 
-Classify it using this taxonomy (choose the closest matching category):
+CRITICAL PROCESSING RULES:
+1. Deduplication & Clean-up: Ignore test records or generic phrases like "good app" or "fast delivery".
+2. Out-of-Scope Filtering: If a review is strictly about rider delays, damaged products, or refund processing, classify Theme as "Out_Of_Scope_Operations" and Confidence Score as 5.
+3. User Cohort Strictness: DO NOT classify a user as "Power_Grocery_Shopper" or "Category_Explorer" unless explicit behavioral evidence exists in the text. Otherwise, output "Unspecified_Insufficient_Context".
+4. Root Cause Extraction: Extract a succinct 3-7 word first-principles root cause (e.g., "Prefers Amazon for electronic warranties", "Uses app solely for emergency milk").
+
+Allowed PM Taxonomy Categories:
 {json.dumps(categories, indent=2)}
 
 Allowed Sentiment Enums: {allowed_sentiments}
@@ -209,14 +185,14 @@ Output a JSON object with these EXACT keys:
 - "sentiment_severity": Choose one from Allowed Sentiment Enums.
 - "user_cohort": Choose one from Allowed User Cohort Enums.
 - "pain_point_category": Choose one of the category names from the taxonomy list above.
-- "root_cause_description": A specific 5-to-7 word description of the specific issue/success.
+- "root_cause_description": A specific 3-to-7 word PM first-principles root cause.
 - "confidence_score": An integer from 1 to 5 indicating your classification confidence.
 
 Example format:
 {{
   "sentiment_severity": "Disappointed",
-  "user_cohort": "Casual Shopper",
-  "pain_point_category": "CategoryBrowseClutter",
+  "user_cohort": "Unspecified_Insufficient_Context",
+  "pain_point_category": "UI_Category_Visibility_Clutter",
   "root_cause_description": "Nested submenus hide gourmet items",
   "confidence_score": 5
 }}
@@ -234,31 +210,32 @@ Provide ONLY raw JSON. No conversational text or markdown blocks.
         result = clean_llm_json(response_text)
         
         if result:
-            # Validate output fields and fallbacks
             theme = result.get("pain_point_category")
-            result["pain_point_category"] = match_closest_category(theme, categories)
+            theme = match_closest_category(theme, categories)
                 
             sentiment = result.get("sentiment_severity")
             if sentiment not in allowed_sentiments:
-                result["sentiment_severity"] = "Negative"
+                sentiment = "Disappointed"
                 
             cohort = result.get("user_cohort")
             if cohort not in allowed_cohorts:
-                result["user_cohort"] = "Casual Shopper"
+                cohort = "Unspecified_Insufficient_Context"
                 
             confidence = result.get("confidence_score")
             try:
-                result["confidence_score"] = int(confidence)
+                confidence = int(confidence)
             except Exception:
-                result["confidence_score"] = 4
+                confidence = 4
                 
-            # Remap fields to match DB columns (theme, sentiment, user_type, root_cause, confidence_score)
+            is_relevant = theme != "Out_Of_Scope_Operations"
+            
             return {
-                "theme": result["pain_point_category"],
-                "sentiment": result["sentiment_severity"],
-                "user_type": result["user_cohort"],
-                "root_cause": result.get("root_cause_description", "Item could not be explored"),
-                "confidence_score": result["confidence_score"]
+                "theme": theme,
+                "sentiment": sentiment,
+                "user_type": cohort,
+                "root_cause": result.get("root_cause_description", "Category exploration barrier")[:150],
+                "confidence_score": confidence,
+                "is_discovery_relevant": is_relevant
             }
             
     except Exception as e:
@@ -271,7 +248,7 @@ Provide ONLY raw JSON. No conversational text or markdown blocks.
 
 def classify_reviews_batch(reviews_list, categories):
     """
-    Classify a batch of reviews (up to 15) in a single Groq LLM request to speed up classification 10x.
+    Classify a batch of reviews in a single Groq LLM request using NextLeap PM Discovery rules.
     """
     if not GROQ_API_KEY:
         results = []
@@ -284,28 +261,34 @@ def classify_reviews_batch(reviews_list, categories):
         
     client = Groq(api_key=GROQ_API_KEY, timeout=6.0)
     
-    allowed_sentiments = ["Positive", "Negative", "Disappointed", "Highly Frustrated"]
-    allowed_cohorts = ["Power User", "Casual Shopper", "New Shopper", "Organic Shopper"]
+    allowed_sentiments = ["Positive", "Disappointed", "Highly Frustrated", "Neutral"]
+    allowed_cohorts = ["Power_Grocery_Shopper", "Category_Explorer", "Single_Category_Shopper", "Unspecified_Insufficient_Context"]
     
     input_reviews = [{"id": r["review_id"], "text": r["text"]} for r in reviews_list]
     
     prompt = f"""
-You are a Growth PM and Data Architect analyzing category exploration and discovery on the grocery app Blinkit.
-Classify the following list of customer reviews against the active taxonomy.
+You are an expert Principal Product Manager on Blinkit's Growth Team specializing in Category Discovery and User Shopping Behavior.
+Classify the following customer reviews against the PM Category Discovery Taxonomy.
 
-Allowed Taxonomy Categories: {json.dumps(categories)}
+CRITICAL PROCESSING RULES:
+1. Deduplication & Clean-up: Ignore test records or generic phrases like "good app" or "fast delivery".
+2. Out-of-Scope Filtering: If a review is strictly about rider delays, damaged products, or refund processing, classify Theme as "Out_Of_Scope_Operations" and Confidence Score as 5.
+3. User Cohort Strictness: DO NOT classify a user as "Power_Grocery_Shopper" or "Category_Explorer" unless explicit behavioral evidence exists in the text. Otherwise, output "Unspecified_Insufficient_Context".
+4. Root Cause Extraction: Extract a succinct 3-7 word first-principles root cause (e.g., "Prefers Amazon for electronic warranties", "Uses app solely for emergency milk").
+
+Allowed PM Taxonomy Categories: {json.dumps(categories)}
 Allowed Sentiment Enums: {allowed_sentiments}
 Allowed User Cohort Enums: {allowed_cohorts}
 
 List of reviews to classify:
 {json.dumps(input_reviews, indent=2)}
 
-Output a single JSON object containing a "classifications" array, where each element corresponds to a review and has these EXACT keys:
+Output a single JSON object containing a "classifications" array, where each element has these EXACT keys:
 - "review_id": The exact review ID from the input list.
 - "sentiment_severity": Choose one from Allowed Sentiment Enums.
 - "user_cohort": Choose one from Allowed User Cohort Enums.
-- "pain_point_category": Choose one category name from the Allowed Taxonomy Categories.
-- "root_cause_description": A specific 5-to-7 word description of the specific issue/success.
+- "pain_point_category": Choose one category name from the Allowed PM Taxonomy Categories.
+- "root_cause_description": A succinct 3-to-7 word PM first-principles root cause.
 - "confidence_score": An integer from 1 to 5 indicating your classification confidence.
 
 Provide ONLY raw JSON. No conversational text or markdown blocks. Do not wrap in backticks or markdown JSON codeblocks.
@@ -332,11 +315,11 @@ Provide ONLY raw JSON. No conversational text or markdown blocks. Do not wrap in
                     
                 sentiment = c.get("sentiment_severity")
                 if sentiment not in allowed_sentiments:
-                    sentiment = "Negative"
+                    sentiment = "Disappointed"
                     
                 cohort = c.get("user_cohort")
                 if cohort not in allowed_cohorts:
-                    cohort = "Casual Shopper"
+                    cohort = "Unspecified_Insufficient_Context"
                     
                 confidence = c.get("confidence_score")
                 try:
@@ -344,14 +327,17 @@ Provide ONLY raw JSON. No conversational text or markdown blocks. Do not wrap in
                 except Exception:
                     confidence = 4
                     
+                is_relevant = theme != "Out_Of_Scope_Operations"
+                    
                 results.append({
                     "review_id": review_id,
                     "text": id_to_review[review_id]["text"],
                     "theme": theme,
                     "sentiment": sentiment,
                     "user_type": cohort,
-                    "root_cause": c.get("root_cause_description", "Item could not be explored"),
-                    "confidence_score": confidence
+                    "root_cause": c.get("root_cause_description", "Category exploration barrier")[:150],
+                    "confidence_score": confidence,
+                    "is_discovery_relevant": is_relevant
                 })
             return results
     except Exception as e:
@@ -371,10 +357,11 @@ Provide ONLY raw JSON. No conversational text or markdown blocks. Do not wrap in
                     "text": r["text"],
                     "theme": "Ineligible / AI Failure",
                     "sentiment": "Negative",
-                    "user_type": "Casual Shopper",
+                    "user_type": "Unspecified_Insufficient_Context",
                     "root_cause": f"AI Failure: {str(e_single)[:100]}",
                     "confidence_score": 1,
                     "spot_checked": True,
-                    "spot_check_valid": None
+                    "spot_check_valid": None,
+                    "is_discovery_relevant": False
                 })
         return results

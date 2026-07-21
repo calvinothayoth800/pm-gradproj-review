@@ -42,11 +42,11 @@ def test_validate_ingestion():
 
 def test_validate_classification():
     """Verify classification validation calculates rates correctly."""
-    categories = ["Fresh Produce Out-Of-Stock", "Category Browse Clutter", "Reorder Widget Convenience"]
+    categories = ["Habit_Loop_Repetitive_Buying", "UI_Category_Visibility_Clutter", "Price_Value_Trial_Hesitation"]
     
     valid_batch = [
-        {"review_id": "id_1", "theme": "Fresh Produce Out-Of-Stock", "sentiment": "Negative", "user_type": "Casual Shopper", "root_cause": "Veggies out of stock"},
-        {"review_id": "id_2", "theme": "CategoryBrowseClutter", "sentiment": "Negative", "user_type": "Power User", "root_cause": "Cluttered menu"} # Theme not in categories, counts as invalid
+        {"review_id": "id_1", "theme": "Habit_Loop_Repetitive_Buying", "sentiment": "Negative", "user_type": "Power_Grocery_Shopper", "root_cause": "Routine milk orders"},
+        {"review_id": "id_2", "theme": "InvalidThemeName", "sentiment": "Negative", "user_type": "Unspecified_Insufficient_Context", "root_cause": "Cluttered menu"} # Theme not in categories, counts as invalid
     ]
     
     # 1 out of 2 are valid => 50% pass rate. Should fail 95% gate
@@ -54,8 +54,8 @@ def test_validate_classification():
     assert is_valid == False
     
     perfect_batch = [
-        {"review_id": "id_1", "theme": "Fresh Produce Out-Of-Stock", "sentiment": "Negative", "user_type": "Casual Shopper", "root_cause": "Veggies out of stock"},
-        {"review_id": "id_2", "theme": "Reorder Widget Convenience", "sentiment": "Positive", "user_type": "Power User", "root_cause": "Smooth reorder widget"}
+        {"review_id": "id_1", "theme": "Habit_Loop_Repetitive_Buying", "sentiment": "Negative", "user_type": "Power_Grocery_Shopper", "root_cause": "Routine milk orders"},
+        {"review_id": "id_2", "theme": "Price_Value_Trial_Hesitation", "sentiment": "Positive", "user_type": "Category_Explorer", "root_cause": "Overpriced non-grocery"}
     ]
     # 100% pass rate. Should pass 95% gate
     is_valid, msg = orchestrator.validate_classification(perfect_batch, categories)
@@ -63,12 +63,12 @@ def test_validate_classification():
 
 def test_rule_based_fallback():
     """Verify local classification rules function when API is offline."""
-    categories = ["Fresh Produce Out-Of-Stock", "Category Browse Clutter", "Reorder Widget Convenience"]
+    categories = ["Habit_Loop_Repetitive_Buying", "UI_Category_Visibility_Clutter", "Search_Only_Bypass", "Out_Of_Scope_Operations"]
     
-    res_stock = classifier.rule_based_fallback("Veggies are always out of stock, empty lists.", categories)
-    assert "Stock" in res_stock["theme"] or "stock" in res_stock["theme"].lower()
+    res_stock = classifier.rule_based_fallback("Rider was late by 30 mins, refund not processed.", categories)
+    assert "Out_Of_Scope" in res_stock["theme"] or "Operations" in res_stock["theme"] or res_stock["is_discovery_relevant"] == False
     assert res_stock["sentiment"] == "Highly Frustrated"
     
-    res_reorder = classifier.rule_based_fallback("Love the new 1-click reorder widget!", categories)
-    assert "Reorder" in res_reorder["theme"] or "reorder" in res_reorder["theme"].lower()
+    res_reorder = classifier.rule_based_fallback("Love the 1-click reorder widget for my daily milk!", categories)
+    assert "Habit" in res_reorder["theme"] or "Reorder" in res_reorder["theme"]
     assert res_reorder["sentiment"] == "Positive"

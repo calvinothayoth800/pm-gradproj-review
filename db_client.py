@@ -222,3 +222,17 @@ def update_classification_category(review_id, new_category):
         }).eq("review_id", review_id).execute()
     retry_supabase_call(call)
 
+def clean_db_noise():
+    """Delete dummy test rows and noise entries from raw_feedback and ai_analytics."""
+    client = get_supabase_client()
+    def call():
+        # Delete test_dummy_id_12345
+        client.table("ai_analytics").delete().eq("review_id", "test_dummy_id_12345").execute()
+        client.table("raw_feedback").delete().eq("review_id", "test_dummy_id_12345").execute()
+    try:
+        retry_supabase_call(call)
+        print("[DB Client] Successfully cleaned dummy test rows from Supabase.")
+    except Exception as e:
+        print(f"[DB Client] Error cleaning DB noise: {e}")
+
+
