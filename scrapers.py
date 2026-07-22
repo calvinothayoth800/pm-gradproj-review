@@ -19,7 +19,9 @@ REDDIT_USER_AGENT = os.getenv("REDDIT_USER_AGENT", "BlinkitCategoryExplorerScrap
 REDDIT_USERNAME = os.getenv("REDDIT_USERNAME")
 REDDIT_PASSWORD = os.getenv("REDDIT_PASSWORD")
 
-# Seed Reddit thread URLs for category exploration / quick commerce category suggestions
+# Seed Reddit subreddits and search queries for category exploration / quick commerce discussions
+REDDIT_SUBREDDITS = ["india", "bangalore", "delhi", "mumbai", "IndianFoodieClub", "gurgaon"]
+REDDIT_SEARCH_QUERIES = ["Blinkit category", "Blinkit recommendation", "Blinkit explore", "Blinkit vegetables", "Blinkit items"]
 REDDIT_SEED_URLS = [
     "https://www.reddit.com/r/india/comments/z8564s/blinkit_zepto_instamart_which_is_better/",
     "https://www.reddit.com/r/bangalore/comments/x90w81/grocery_delivery_apps_zepto_vs_blinkit_vs/"
@@ -256,15 +258,15 @@ def scrape_app_store(limit=100):
                 
     return reviews_list
 
-def scrape_reddit():
-    """Scrape comments from curated Reddit threads using PRAW (with fallback stuffing)."""
+def scrape_reddit(limit=75):
+    """Scrape comments and posts from curated Reddit threads and subreddits using PRAW (with fallback stuffing)."""
     reviews_list = []
     active_keywords = db_client.fetch_keywords()
     seen_ids = set()
     
     if not (REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET):
-        print("[Reddit Scraper] OAuth credentials missing. Stuffing with 20 simulated reviews...")
-        return get_simulated_scraped_data("Reddit", count=20)
+        print(f"[Reddit Scraper] OAuth credentials missing. Generating {limit} simulated Reddit feedback records...")
+        return get_simulated_scraped_data("Reddit", count=limit)
         
     try:
         import praw
@@ -277,36 +279,79 @@ def scrape_reddit():
             password=REDDIT_PASSWORD
         )
         
-        for url in REDDIT_SEED_URLS:
-            print(f"[Reddit Scraper] Scraping thread: {url}")
-            submission = reddit.submission(url=url)
-            submission.comments.replace_more(limit=0)
-            for comment in submission.comments:
-                review_id = compute_md5("Reddit", comment.id)
-                if review_id in seen_ids:
-                    continue
+        # 1. Search across target subreddits for Blinkit queries
+        for sub_name in REDDIT_SUBREDDITS:
+            try:
+                subreddit = reddit.subreddit(sub_name)
+                for query in REDDIT_SEARCH_QUERIES:
+                    print(f"[Reddit Scraper] Searching r/{sub_name} for '{query}'...")
+                    for submission in subreddit.search(query, limit=10):
+                        submission.comments.replace_more(limit=0)
+                        for comment in submission.comments[:5]:
+                            review_id = compute_md5("Reddit", comment.id)
+                            if review_id in seen_ids:
+                                continue
+                                
+                            text = clean_text(comment.body)
+                            if not filter_by_keywords(text, active_keywords):
+                                continue
+                                
+                            timestamp = datetime.fromtimestamp(comment.created_utc, timezone.utc).isoformat()
+                            
+                            seen_ids.add(review_id)
+                            reviews_list.append({
+                                "review_id": review_id,
+                                "source": "Reddit",
+                                "timestamp": timestamp,
+                                "text": text,
+                                "app_version_approx": "N/A"
+                            })
+                            if len(reviews_list) >= limit:
+                                break
+                    if len(reviews_list) >= limit:
+                        break
+            except Exception as e_sub:
+                print(f"[Reddit Scraper] Subreddit r/{sub_name} search notice: {e_sub}")
+            if len(reviews_list) >= limit:
+                break
+
+        # 2. Seed URLs fallback search
+        if len(reviews_list) < limit:
+            for url in REDDIT_SEED_URLS:
+                print(f"[Reddit Scraper] Scraping seed thread: {url}")
+                submission = reddit.submission(url=url)
+                submission.comments.replace_more(limit=0)
+                for comment in submission.comments:
+                    review_id = compute_md5("Reddit", comment.id)
+                    if review_id in seen_ids:
+                        continue
+                        
+                    text = clean_text(comment.body)
+                    if not filter_by_keywords(text, active_keywords):
+                        continue
+                        
+                    timestamp = datetime.fromtimestamp(comment.created_utc, timezone.utc).isoformat()
                     
-                text = clean_text(comment.body)
-                if not filter_by_keywords(text, active_keywords):
-                    continue
-                    
-                timestamp = datetime.fromtimestamp(comment.created_utc, timezone.utc).isoformat()
-                
-                seen_ids.add(review_id)
-                reviews_list.append({
-                    "review_id": review_id,
-                    "source": "Reddit",
-                    "timestamp": timestamp,
-                    "text": text,
-                    "app_version_approx": "N/A"
-                })
+                    seen_ids.add(review_id)
+                    reviews_list.append({
+                        "review_id": review_id,
+                        "source": "Reddit",
+                        "timestamp": timestamp,
+                        "text": text,
+                        "app_version_approx": "N/A"
+                    })
+                    if len(reviews_list) >= limit:
+                        break
+                if len(reviews_list) >= limit:
+                    break
+
         print(f"[Reddit Scraper] Ingested {len(reviews_list)} matching comments from Reddit.")
     except Exception as e:
         print(f"[Reddit Scraper] PRAW extraction failed: {e}")
         
-    if len(reviews_list) < 20:
-        needed = 20 - len(reviews_list)
-        print(f"[Reddit Scraper] Starvation check: Reddit scraper only yielded {len(reviews_list)} comments. Stuffing with {needed} simulated comments...")
+    if len(reviews_list) < limit:
+        needed = limit - len(reviews_list)
+        print(f"[Reddit Scraper] Starvation check: Reddit scraper yielded {len(reviews_list)} comments. Stuffing with {needed} simulated comments...")
         stuffed = get_simulated_scraped_data("Reddit", count=needed)
         for item in stuffed:
             if item["review_id"] not in seen_ids:
