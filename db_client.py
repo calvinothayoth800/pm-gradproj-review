@@ -171,6 +171,9 @@ def fetch_analyzed_data():
     if not rows:
         return pd.DataFrame()
     df = pd.DataFrame(rows)
+    # Filter out test artifacts and drop exact text duplicates
+    df = df[~df['Text'].str.contains('Test Review ID|test_dummy', case=False, na=False)]
+    df = df.drop_duplicates(subset=['Text'], keep='first')
     return df
 
 def update_spot_check(review_id, is_valid):
@@ -226,12 +229,12 @@ def clean_db_noise():
     """Delete dummy test rows and noise entries from raw_feedback and ai_analytics."""
     client = get_supabase_client()
     def call():
-        # Delete test_dummy_id_12345
-        client.table("ai_analytics").delete().eq("review_id", "test_dummy_id_12345").execute()
-        client.table("raw_feedback").delete().eq("review_id", "test_dummy_id_12345").execute()
+        # Delete any test dummy rows or Test Review ID artifact entries
+        client.table("ai_analytics").delete().or_("review_id.ilike.%test_dummy%,review_id.ilike.%Test Review ID%").execute()
+        client.table("raw_feedback").delete().or_("text.ilike.%Test Review ID%,text.ilike.%test_dummy%,review_id.ilike.%test_dummy%,review_id.ilike.%Test Review ID%").execute()
     try:
         retry_supabase_call(call)
-        print("[DB Client] Successfully cleaned dummy test rows from Supabase.")
+        print("[DB Client] Successfully cleaned dummy test rows and test artifacts from Supabase.")
     except Exception as e:
         print(f"[DB Client] Error cleaning DB noise: {e}")
 
