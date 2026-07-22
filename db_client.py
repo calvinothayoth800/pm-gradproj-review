@@ -132,7 +132,7 @@ def fetch_analyzed_data():
     def call():
         response = client.table("raw_feedback").select(
             "review_id, source, timestamp, text, app_version_approx, ai_analytics(theme, sentiment, user_type, root_cause, confidence_score, audited, audit_theme, audit_sentiment, audit_user_type, spot_checked, spot_check_valid, analyzed_at)"
-        ).order("timestamp", desc=True).execute()
+        ).order("timestamp", desc=True).limit(5000).execute()
         return response.data
     
     data = retry_supabase_call(call)
