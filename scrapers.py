@@ -10,7 +10,7 @@ load_dotenv()
 
 # Configurable Targets (Blinkit)
 PLAY_STORE_APP_ID = "com.grofers.customerapp"
-APP_STORE_APP_ID = "1212852256"
+APP_STORE_APP_ID = "960335206"
 
 # Reddit OAuth Feature Flag
 REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID")
@@ -186,9 +186,9 @@ def scrape_app_store(limit=100):
         print(f"[App Store Scraper] Scraping up to {limit} reviews for App ID {APP_STORE_APP_ID}...")
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         
-        # Page through 5 pages of App Store RSS feed to fetch a larger window of reviews (50 reviews per page)
-        for page in range(1, 6):
-            url = f"https://itunes.apple.com/in/rss/customerreviews/page={page}/id={APP_STORE_APP_ID}/sortBy=mostRecent/json"
+        # Page through 10 pages of App Store RSS feed to fetch a larger window of reviews (50 reviews per page)
+        for page in range(1, 11):
+            url = f"https://itunes.apple.com/in/rss/customerreviews/id={APP_STORE_APP_ID}/page={page}/sortBy=mostRecent/json"
             response = requests.get(url, headers=headers, timeout=10)
             if response.status_code == 200:
                 data = response.json()
