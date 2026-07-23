@@ -50,60 +50,9 @@ def filter_by_keywords(text, keywords):
     return any(kw.lower() in text_lower for kw in keywords)
 
 def get_simulated_scraped_data(source, count=20):
-    """Generate high-quality realistic Blinkit review data for category discovery exploration fallback."""
-    print(f"[Scraper Fallback] Generating {count} simulated feedback records for {source}...")
-    import random
-    from datetime import datetime, timezone, timedelta
-    
-    TEMPLATES = [
-        "Blinkit category recommendations are so bad. I only buy vegetables but it keeps showing pet food.",
-        "The category browse layout is cluttered. Cannot find organic milk easily on this app update.",
-        "I love the 'reorder' widget on Blinkit! Makes buying my weekly vegetables in 1 click so easy.",
-        "Blinkit keeps recommending items that are out of stock in my area. Why explore new categories then?",
-        "Finding items under 'Gourmet' is a pain now. The new category exploration list is so sluggish.",
-        "Every time I open the app, it shows 'never tried' categories which I don't care about.",
-        "The search feature works well, but category-based navigation is cluttered and broken.",
-        "The app keeps forcing substitutes when items are out of stock instead of letting me browse similar categories.",
-        "Blinkit delivery is fast but the category recommendation algorithm is stale. Same old suggestions.",
-        "Beautiful new UI in Blinkit, but why did they hide the 'Fresh Produce' category under submenus?",
-        "Tried exploring the new International Foods category on Blinkit, but zero personalized recommendations appeared.",
-        "Wish Blinkit would let me hide categories I never buy like alcohol or meat from my main homepage tab.",
-        "Category page loads very slowly when switching from Fruits to Personal Care items on 5G network.",
-        "The recommended snack combos on Blinkit home screen are actually pretty accurate to my weekend habits.",
-        "Blinkit's new 'Explore Categories' banner is intrusive and blocks my recent orders cart preview.",
-        "Searching for gluten-free staples is hard because Blinkit doesn't have a dedicated health category filter.",
-        "Why is baby care listed under household essentials? The category hierarchy in Blinkit app is confusing.",
-        "Discovered imported chocolates on Blinkit via the category highlight banner today. Great addition!",
-        "Category filtering by price or brand is missing when browsing the cosmetics section on Blinkit.",
-        "I rarely explore new categories on Blinkit because the search bar is just 10x faster than tapping categories.",
-        "Blinkit recommended fresh bakery items based on my coffee order history. That was super smart!",
-        "The pet supplies category has very limited variety compared to dedicated apps like Heads Up For Tails.",
-        "Can we get a 'Frequently Bought Together' category shortcut on the main cart review page?",
-        "Blinkit shows winter care items even during peak summer in Delhi. Update your seasonal category banners!",
-        "I bought organic eggs once and now my entire home page is flooded with farm produce recommendations.",
-        "Navigating through subcategories takes too many taps. Need a single-scroll category directory on Blinkit.",
-        "The electronics & chargers category saved me when my cable broke before a meeting. Instant 10-min delivery!",
-        "Sub-category tags like 'Low Carb' or 'Sugar Free' would make grocery category exploration so much better.",
-        "Blinkit category banners keep promoting festive sweets even after Diwali is over.",
-        "Great collection of regional spices in the Indian Staples category. Easy to discover authentic ingredients."
-    ]
-    
-    results = []
-    base_time = datetime.now(timezone.utc)
-    
-    for i in range(count):
-        text = random.choice(TEMPLATES)
-        review_id_raw = f"simulated_{source.lower()}_{i}_{int(datetime.now().timestamp())}_{random.randint(10000, 99999)}"
-        timestamp = (base_time - timedelta(days=random.randint(0, 30))).isoformat()
-        
-        results.append({
-            "review_id": compute_md5(source, review_id_raw),
-            "source": source,
-            "timestamp": timestamp,
-            "text": text,
-            "app_version_approx": f"v18.{random.randint(10, 70)}.0"
-        })
-    return results
+    """Zero-synthetic policy: Returns an empty list to prevent synthetic backfilling."""
+    print(f"[Zero-Synthetic Policy] Mock/synthetic data generation disabled for {source}.")
+    return []
 
 def scrape_play_store(limit=150):
     """Scrape reviews from Google Play Store for Blinkit with keyword expansion and fallback stuffing."""
@@ -183,17 +132,6 @@ def scrape_play_store(limit=150):
         print(f"[Play Store Scraper] Ingested {len(reviews_list)} matching reviews from Play Store.")
     except Exception as e:
         print(f"[Play Store Scraper] Live scraper failed completely: {e}")
-        
-    # If the live scraper yielded less than the requested limit, stuff the queue with simulated reviews
-    if len(reviews_list) < limit:
-        needed = limit - len(reviews_list)
-        print(f"[Play Store Scraper] Starvation check: Live scraper only yielded {len(reviews_list)} reviews. Stuffing with {needed} simulated reviews...")
-        stuffed = get_simulated_scraped_data("Google Play", count=needed)
-        for item in stuffed:
-            if item["review_id"] not in seen_ids:
-                seen_ids.add(item["review_id"])
-                reviews_list.append(item)
-                
     return reviews_list
 
 def scrape_app_store(limit=100):
@@ -264,27 +202,17 @@ def scrape_app_store(limit=100):
     except Exception as e:
         print(f"[App Store Scraper] Live scraper failed completely: {e}")
         
-    # Fallback stuffing to prevent starvation
-    if len(reviews_list) < limit:
-        needed = limit - len(reviews_list)
-        print(f"[App Store Scraper] Starvation check: Live App Store scraper only yielded {len(reviews_list)} reviews. Stuffing with {needed} simulated reviews...")
-        stuffed = get_simulated_scraped_data("App Store", count=needed)
-        for item in stuffed:
-            if item["review_id"] not in seen_ids:
-                seen_ids.add(item["review_id"])
-                reviews_list.append(item)
-                
     return reviews_list
 
 def scrape_reddit(limit=75):
-    """Scrape comments and posts from curated Reddit threads and subreddits using PRAW (with fallback stuffing)."""
+    """Scrape comments and posts from curated Reddit threads and subreddits using PRAW."""
     reviews_list = []
     active_keywords = db_client.fetch_keywords()
     seen_ids = set()
     
     if not (REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET):
-        print(f"[Reddit Scraper] OAuth credentials missing. Generating {limit} simulated Reddit feedback records...")
-        return get_simulated_scraped_data("Reddit", count=limit)
+        print(f"[Reddit Scraper] OAuth credentials missing. Returning {len(reviews_list)} reviews under zero-synthetic policy.")
+        return reviews_list
         
     try:
         import praw
@@ -367,13 +295,4 @@ def scrape_reddit(limit=75):
     except Exception as e:
         print(f"[Reddit Scraper] PRAW extraction failed: {e}")
         
-    if len(reviews_list) < limit:
-        needed = limit - len(reviews_list)
-        print(f"[Reddit Scraper] Starvation check: Reddit scraper yielded {len(reviews_list)} comments. Stuffing with {needed} simulated comments...")
-        stuffed = get_simulated_scraped_data("Reddit", count=needed)
-        for item in stuffed:
-            if item["review_id"] not in seen_ids:
-                seen_ids.add(item["review_id"])
-                reviews_list.append(item)
-                
     return reviews_list

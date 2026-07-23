@@ -171,8 +171,28 @@ def fetch_analyzed_data():
     if not rows:
         return pd.DataFrame()
     df = pd.DataFrame(rows)
-    # Filter out test artifacts and drop exact text duplicates
-    df = df[~df['Text'].str.contains('Test Review ID|test_dummy', case=False, na=False)]
+    
+    # 1. Filter out synthetic markers and test artifacts
+    synthetic_pattern = r"Review verified|Test Review ID|test_dummy|Verified Purchase|simulated_"
+    df = df[~df['Text'].astype(str).str.contains(synthetic_pattern, case=False, na=False)]
+    
+    # 2. Clean residual marker strings from Text column if any remain
+    df['Text'] = df['Text'].astype(str).str.replace(r"\s*\(Review verified:.*?\)", "", regex=True).str.strip()
+    df['Text'] = df['Text'].astype(str).str.replace(r"\s*\(Test Review ID:.*?\)", "", regex=True).str.strip()
+    
+    # 3. Mandatory micro-theme reconciliation mapping
+    micro_map = {
+        "ClutteredCategoryBrowse": "UI_Category_Visibility_Clutter",
+        "PoorNavigation": "UI_Category_Visibility_Clutter",
+        "IrrelevantRecommendations": "Habit_Loop_Repetitive_Buying",
+        "StaleCategoryRecommendations": "Habit_Loop_Repetitive_Buying",
+        "ReorderWidgetPerformance": "Habit_Loop_Repetitive_Buying",
+        "OutOfStockRecommendations": "Habit_Loop_Repetitive_Buying",
+        "ForcedSubstitutes": "Habit_Loop_Repetitive_Buying"
+    }
+    df['Theme'] = df['Theme'].replace(micro_map)
+    
+    # 4. Deduplicate verbatim review texts per source
     df = df.drop_duplicates(subset=['Text'], keep='first')
     return df
 
@@ -226,15 +246,27 @@ def update_classification_category(review_id, new_category):
     retry_supabase_call(call)
 
 def clean_db_noise():
-    """Delete dummy test rows and noise entries from raw_feedback and ai_analytics."""
+    """Delete dummy test rows, synthetic markers, and noise entries from raw_feedback and ai_analytics."""
     client = get_supabase_client()
     def call():
-        # Delete any test dummy rows or Test Review ID artifact entries
-        client.table("ai_analytics").delete().or_("review_id.ilike.%test_dummy%,review_id.ilike.%Test Review ID%").execute()
-        client.table("raw_feedback").delete().or_("text.ilike.%Test Review ID%,text.ilike.%test_dummy%,review_id.ilike.%test_dummy%,review_id.ilike.%Test Review ID%").execute()
+        # Delete any test dummy rows or synthetic artifact entries from ai_analytics & raw_feedback
+        client.table("ai_analytics").delete().or_(
+            "review_id.ilike.%test_dummy%,"
+            "review_id.ilike.%Test Review ID%,"
+            "review_id.ilike.%simulated_%"
+        ).execute()
+        client.table("raw_feedback").delete().or_(
+            "text.ilike.%Test Review ID%,"
+            "text.ilike.%test_dummy%,"
+            "text.ilike.%Review verified%,"
+            "text.ilike.%Verified Purchase%,"
+            "review_id.ilike.%test_dummy%,"
+            "review_id.ilike.%Test Review ID%,"
+            "review_id.ilike.%simulated_%"
+        ).execute()
     try:
         retry_supabase_call(call)
-        print("[DB Client] Successfully cleaned dummy test rows and test artifacts from Supabase.")
+        print("[DB Client] Successfully cleaned dummy test rows, synthetic markers, and test artifacts from Supabase.")
     except Exception as e:
         print(f"[DB Client] Error cleaning DB noise: {e}")
 

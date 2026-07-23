@@ -18,14 +18,34 @@ if not GROQ_API_KEY:
         pass
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
+MICRO_THEME_MAP = {
+    "ClutteredCategoryBrowse": "UI_Category_Visibility_Clutter",
+    "PoorNavigation": "UI_Category_Visibility_Clutter",
+    "IrrelevantRecommendations": "Habit_Loop_Repetitive_Buying",
+    "StaleCategoryRecommendations": "Habit_Loop_Repetitive_Buying",
+    "ReorderWidgetPerformance": "Habit_Loop_Repetitive_Buying",
+    "OutOfStockRecommendations": "Habit_Loop_Repetitive_Buying",
+    "ForcedSubstitutes": "Habit_Loop_Repetitive_Buying"
+}
+
 # Fuzzy match LLM outputs to active category list
 def match_closest_category(output_theme, categories):
-    if not categories:
-        return "Fresh Produce Out-Of-Stock"
-    if output_theme in categories:
-        return output_theme
+    if not output_theme:
+        return categories[0] if categories else "Out_Of_Scope_Operations"
         
-    clean_output = re.sub(r'[^a-zA-Z0-9]', '', str(output_theme)).lower()
+    str_theme = str(output_theme).strip()
+    
+    # Mandatory micro-theme reconciliation mapping
+    if str_theme in MICRO_THEME_MAP:
+        return MICRO_THEME_MAP[str_theme]
+        
+    if not categories:
+        return "Out_Of_Scope_Operations"
+        
+    if str_theme in categories:
+        return str_theme
+        
+    clean_output = re.sub(r'[^a-zA-Z0-9]', '', str_theme).lower()
     for cat in categories:
         clean_cat = re.sub(r'[^a-zA-Z0-9]', '', str(cat)).lower()
         if clean_output == clean_cat or clean_output in clean_cat or clean_cat in clean_output:
